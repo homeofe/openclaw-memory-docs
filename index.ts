@@ -40,11 +40,12 @@ export default function register(api: any) {
   api.registerCommand({
     name: "remember-doc",
     description: "Save a documentation memory item (explicit capture)",
-    usage: "/remember-doc <text>",
-    run: async (ctx: any) => {
-      const text = (ctx?.argsText ?? "").trim();
+    requireAuth: false,
+    acceptsArgs: true,
+    handler: async (ctx: any) => {
+      const text = String(ctx?.args ?? "").trim();
       if (!text) {
-        return { ok: true, message: "Usage: /remember-doc <text>" };
+        return { text: "Usage: /remember-doc <text>" };
       }
 
       const r = redactSecrets ? redactor.redact(text) : { redactedText: text, hadSecrets: false, matches: [] };
@@ -68,7 +69,7 @@ export default function register(api: any) {
       const note = r.hadSecrets
         ? " (note: secrets were redacted)"
         : "";
-      return { ok: true, message: `Saved docs memory.${note}` };
+      return { text: `Saved docs memory.${note}` };
     },
   });
 
