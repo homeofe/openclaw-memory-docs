@@ -1,7 +1,7 @@
 {
   "id": "openclaw-memory-docs",
   "name": "OpenClaw Memory (Docs)",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Documentation-focused memory: explicit capture + searchable store.",
   "configSchema": {
     "$schema": "http://json-schema.org/draft-07/schema#",
