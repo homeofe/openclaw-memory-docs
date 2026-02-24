@@ -7,7 +7,29 @@ This plugin is conservative by design:
 - Explicit command to store docs memories
 - Local JSONL store + local deterministic embeddings
 
-## Install (dev)
+## Install
+
+### ClawHub
+
+```bash
+clawhub install openclaw-memory-docs
+```
+
+### Dev
+
+```bash
+openclaw plugins install -l ~/.openclaw/workspace/openclaw-memory-docs
+openclaw gateway restart
+```
+
+## Usage
+
+- Save: `/remember-doc <text>`
+- Search (tool): `docs_memory_search({query, limit})`
+
+## Config
+
+```json
 
 ```bash
 openclaw plugins install -l ~/.openclaw/workspace/openclaw-memory-docs
