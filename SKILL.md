@@ -35,14 +35,16 @@ openclaw plugins install -l ~/.openclaw/workspace/openclaw-memory-docs
 openclaw gateway restart
 ```
 
-## Usage
+## Usage (Convention)
 
 ### Save
 
-Send:
+Use `/remember-doc` for anything that is documentation-grade and should be stable.
+
+Example:
 
 ```
-/remember-doc Our Dubai plan: decide A vs B, then collect facts, then talk to a tax advisor.
+/remember-doc Dubai: decide A vs B, then collect facts, then prepare a tax advisor briefing.
 ```
 
 The plugin will store the note and reply with a confirmation. If it detects secrets, it will redact them and still store the redacted version.
