@@ -25,21 +25,7 @@ openclaw gateway restart
 ## Usage
 
 - Save: `/remember-doc <text>`
-- Search (tool): `docs_memory_search({query, limit})`
-
-## Config
-
-```json
-
-```bash
-openclaw plugins install -l ~/.openclaw/workspace/openclaw-memory-docs
-openclaw gateway restart
-```
-
-## Usage
-
-- Save: `/remember-doc <text>`
-- Search (tool): `docs_memory_search({query, limit})`
+- Search (tool): `docs_memory_search({ query, limit })`
 
 ## Config
 
