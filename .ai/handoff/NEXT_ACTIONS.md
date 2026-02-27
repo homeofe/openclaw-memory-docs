@@ -1,4 +1,4 @@
-# openclaw-memory-docs: Next Actions for Incoming Agent
+﻿# openclaw-memory-docs: Next Actions for Incoming Agent
 
 > Priority order. Work top-down.
 > Each item should be self-contained, the agent must be able to start without asking questions.
@@ -10,7 +10,7 @@
 
 **Goal:** Make `/forget-doc` usable by displaying memory item IDs in list and search output.
 
-**GitHub issue:** [#4](https://github.com/homeofe/openclaw-memory-docs/issues/4)
+**GitHub issue:** [#4](https://github.com/elvatis/openclaw-memory-docs/issues/4)
 **Priority:** HIGH
 
 **Context:**
@@ -34,7 +34,7 @@
 
 **Goal:** Allow users to attach tags and project names to memory items.
 
-**GitHub issue:** [#1](https://github.com/homeofe/openclaw-memory-docs/issues/1)
+**GitHub issue:** [#1](https://github.com/elvatis/openclaw-memory-docs/issues/1)
 **Priority:** MEDIUM
 **Blocked by:** None (T-002 is done)
 
@@ -44,7 +44,7 @@
 
 **Goal:** Bring documentation up to date with all 4 commands and config options.
 
-**GitHub issue:** [#5](https://github.com/homeofe/openclaw-memory-docs/issues/5)
+**GitHub issue:** [#5](https://github.com/elvatis/openclaw-memory-docs/issues/5)
 **Priority:** MEDIUM
 **Blocked by:** T-003 (output format should be finalized first)
 
@@ -54,7 +54,7 @@
 
 **Goal:** Add an optional export mode that writes memory items to individual markdown files.
 
-**GitHub issue:** [#2](https://github.com/homeofe/openclaw-memory-docs/issues/2)
+**GitHub issue:** [#2](https://github.com/elvatis/openclaw-memory-docs/issues/2)
 **Priority:** LOW
 **Blocked by:** T-004 (tag metadata needed for meaningful export filenames)
 

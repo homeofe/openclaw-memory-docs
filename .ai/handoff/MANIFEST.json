@@ -1,4 +1,4 @@
-{
+﻿{
   "aahp_version": "3.0",
   "project": "openclaw-memory-docs",
   "last_session": {
@@ -103,7 +103,7 @@
       "priority": "low",
       "depends_on": [],
       "created": "2026-02-27T08:40:56Z",
-      "github_issue": "https://github.com/homeofe/openclaw-memory-docs/issues/2",
+      "github_issue": "https://github.com/elvatis/openclaw-memory-docs/issues/2",
       "completed": "2026-02-27T07:52:25.364Z"
     }
   }

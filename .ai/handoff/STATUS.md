@@ -1,4 +1,4 @@
-# openclaw-memory-docs: Current State of the Nation
+﻿# openclaw-memory-docs: Current State of the Nation
 
 > Last updated: 2026-02-27 by Claude Opus 4.6 (unit tests session)
 > Commit: pending
@@ -24,7 +24,7 @@
 | Component | Location | State |
 |-----------|----------|-------|
 | Local dev | `node index.ts` via openclaw | OK (Assumed) |
-| GitHub repo | `homeofe/openclaw-memory-docs` | Active, 5 open issues |
+| GitHub repo | `elvatis/openclaw-memory-docs` | Active, 5 open issues |
 
 ---
 

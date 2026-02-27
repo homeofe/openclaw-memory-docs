@@ -1,6 +1,6 @@
-# openclaw-memory-docs: Autonomous Multi-Agent Workflow
+﻿# openclaw-memory-docs: Autonomous Multi-Agent Workflow
 
-> Based on the [AAHP Protocol](https://github.com/homeofe/AAHP).
+> Based on the [AAHP Protocol](https://github.com/elvatis/AAHP).
 > No manual triggers. Agents read `handoff/DASHBOARD.md` and work autonomously.
 
 ---

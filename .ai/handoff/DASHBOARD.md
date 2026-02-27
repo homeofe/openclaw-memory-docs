@@ -1,4 +1,4 @@
-# openclaw-memory-docs: Build Dashboard
+﻿# openclaw-memory-docs: Build Dashboard
 
 > Single source of truth for build health, test coverage, and pipeline state.
 > Updated by agents at the end of every completed task.
@@ -38,11 +38,11 @@
 
 | # | Title | Priority | Labels | Status |
 |---|-------|----------|--------|--------|
-| [#3](https://github.com/homeofe/openclaw-memory-docs/issues/3) | Add unit tests for all commands and the search tool | HIGH | enhancement, v0.2 | Done |
-| [#4](https://github.com/homeofe/openclaw-memory-docs/issues/4) | /list-docs should display item IDs for use with /forget-doc | HIGH | bug, v0.2 | Done |
-| [#1](https://github.com/homeofe/openclaw-memory-docs/issues/1) | /remember-doc supports tags + project | MEDIUM | enhancement, v0.2 | Done |
-| [#5](https://github.com/homeofe/openclaw-memory-docs/issues/5) | Update README and SKILL.md to document all commands | MEDIUM | documentation, v0.2 | Done |
-| [#2](https://github.com/homeofe/openclaw-memory-docs/issues/2) | export/sync mode (git-first) | LOW | enhancement, v0.2 | Done |
+| [#3](https://github.com/elvatis/openclaw-memory-docs/issues/3) | Add unit tests for all commands and the search tool | HIGH | enhancement, v0.2 | Done |
+| [#4](https://github.com/elvatis/openclaw-memory-docs/issues/4) | /list-docs should display item IDs for use with /forget-doc | HIGH | bug, v0.2 | Done |
+| [#1](https://github.com/elvatis/openclaw-memory-docs/issues/1) | /remember-doc supports tags + project | MEDIUM | enhancement, v0.2 | Done |
+| [#5](https://github.com/elvatis/openclaw-memory-docs/issues/5) | Update README and SKILL.md to document all commands | MEDIUM | documentation, v0.2 | Done |
+| [#2](https://github.com/elvatis/openclaw-memory-docs/issues/2) | export/sync mode (git-first) | LOW | enhancement, v0.2 | Done |
 
 ---
 
