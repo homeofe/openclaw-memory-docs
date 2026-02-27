@@ -11,14 +11,16 @@ It is designed for project documentation and long-lived notes where you care abo
 - explicit control over what gets stored
 - no accidental storage of secrets
 - deterministic, local-first behavior
+- tag and project metadata for organization
 
 ## What it does
 
-- Adds a control command: **`/remember-doc <text>`**
-- Adds a search tool: **`docs_memory_search({ query, limit })`**
+- Adds commands: `/remember-doc`, `/search-docs`, `/list-docs`, `/forget-doc`
+- Adds a search tool: `docs_memory_search`
 - Stores entries in a local **JSONL file** (one record per line)
 - Uses a deterministic local embedder to enable semantic-ish search without external services
 - Optional redaction for common secret formats (API keys, tokens, private key blocks)
+- Supports tag and project metadata for filtering and organization
 
 ## Install
 
@@ -35,29 +37,100 @@ openclaw plugins install -l ~/.openclaw/workspace/openclaw-memory-docs
 openclaw gateway restart
 ```
 
-## Usage (Convention)
+## Commands
 
-### Save
+### `/remember-doc` - Save a documentation memory
 
-Use `/remember-doc` for anything that is documentation-grade and should be stable.
+```
+/remember-doc [--tags t1,t2] [--project name] <text>
+```
 
-Example:
+Stores a note as a documentation memory item. Secrets are automatically redacted if `redactSecrets` is enabled (default: true).
+
+- `--tags t1,t2` - Comma-separated tags, merged with `defaultTags` from config
+- `--project name` - Associate this item with a project
+
+Examples:
 
 ```
 /remember-doc Dubai: decide A vs B, then collect facts, then prepare a tax advisor briefing.
+/remember-doc --tags legal,tax --project dubai Tax advisor meeting scheduled for March.
+/remember-doc --tags=api --project=backend The /users endpoint requires Bearer auth.
 ```
 
-The plugin will store the note and reply with a confirmation. If it detects secrets, it will redact them and still store the redacted version.
+### `/search-docs` - Search documentation memories
 
-### Search
+```
+/search-docs [--tags t1,t2] [--project name] <query> [limit]
+```
 
-Call the tool:
+Searches stored memories using semantic similarity. Returns scored results showing IDs, tags, and project badges.
+
+- `query` - Search text (required)
+- `limit` - Max results, 1-20 (default: 5)
+- `--tags t1,t2` - Filter to items matching these tags
+- `--project name` - Filter to items with this project
+
+Examples:
+
+```
+/search-docs Dubai plan
+/search-docs --project=dubai tax advisor 10
+/search-docs --tags=api,backend endpoint auth
+```
+
+### `/list-docs` - List recent documentation memories
+
+```
+/list-docs [--tags t1,t2] [--project name] [limit]
+```
+
+Lists the most recent documentation memory items with IDs, dates, tags, and project badges.
+
+- `limit` - Max items, 1-50 (default: 10)
+- `--tags t1,t2` - Filter to items matching these tags
+- `--project name` - Filter to items with this project
+
+Examples:
+
+```
+/list-docs
+/list-docs 20
+/list-docs --project=dubai
+/list-docs --tags=legal --project=dubai 5
+```
+
+### `/forget-doc` - Delete a documentation memory
+
+```
+/forget-doc <id>
+```
+
+Deletes a memory item by its full ID (shown by `/list-docs`). Requires auth.
+
+## Tool: `docs_memory_search`
+
+Available to agents and automations as a tool call. Searches documentation memories by query with optional tag and project filtering.
+
+**Input schema:**
 
 ```json
-{ "query": "Dubai plan A vs B", "limit": 5 }
+{
+  "query": "Dubai plan A vs B",
+  "limit": 5,
+  "tags": ["legal"],
+  "project": "dubai"
+}
 ```
 
-The tool returns a list of hits with scores and text snippets.
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | string | yes | Search query text |
+| `limit` | number | no | Max results, 1-20 (default: 5) |
+| `tags` | string[] | no | Filter results to items matching all given tags |
+| `project` | string | no | Filter results to items with this project name |
+
+**Returns** a `hits` array with `score`, `id`, `createdAt`, `tags`, `project`, and `text` for each match.
 
 ## Configuration
 
@@ -71,13 +144,23 @@ The tool returns a list of hits with scores and text snippets.
           "storePath": "~/.openclaw/workspace/memory/docs-memory.jsonl",
           "dims": 256,
           "redactSecrets": true,
-          "defaultTags": ["docs"]
+          "defaultTags": ["docs"],
+          "maxItems": 5000
         }
       }
     }
   }
 }
 ```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | boolean | `true` | Enable or disable the plugin |
+| `storePath` | string | `~/.openclaw/...docs-memory.jsonl` | Path to the JSONL storage file |
+| `dims` | number | `256` | Embedding dimensions (32-2048) |
+| `redactSecrets` | boolean | `true` | Redact detected secrets before storage |
+| `defaultTags` | string[] | `["docs"]` | Tags automatically added to every saved item |
+| `maxItems` | number | `5000` | Maximum items in the store (100-100000) |
 
 ### Notes
 
