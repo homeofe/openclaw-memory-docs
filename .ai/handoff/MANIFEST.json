@@ -94,6 +94,14 @@
         "T-004"
       ],
       "created": "2026-02-27T01:00:00Z"
+    },
+    "T-007": {
+      "title": "Add export/sync mode (write memories to markdown files)",
+      "status": "ready",
+      "priority": "low",
+      "depends_on": [],
+      "created": "2026-02-27T08:40:56Z",
+      "github_issue": "https://github.com/homeofe/openclaw-memory-docs/issues/2"
     }
   }
 }
