@@ -12,6 +12,61 @@ import {
   type ToolCallParams,
 } from "@elvatis_com/openclaw-memory-core";
 
+// ---------------------------------------------------------------------------
+// Flag parser: extracts --tags and --project from an argument string.
+// Returns the remaining text with flags stripped out.
+// ---------------------------------------------------------------------------
+
+export interface ParsedFlags {
+  tags: string[];
+  project: string | undefined;
+  text: string;
+}
+
+export function parseFlags(raw: string): ParsedFlags {
+  let tags: string[] = [];
+  let project: string | undefined;
+
+  // Match --tags=val or --tags val (comma-separated, no spaces in values)
+  const tagsEq = raw.match(/--tags=(\S+)/);
+  const tagsSp = !tagsEq ? raw.match(/--tags\s+(\S+)/) : null;
+  if (tagsEq) {
+    tags = tagsEq[1]!.split(",").map((t) => t.trim()).filter(Boolean);
+    raw = raw.replace(tagsEq[0], "");
+  } else if (tagsSp) {
+    tags = tagsSp[1]!.split(",").map((t) => t.trim()).filter(Boolean);
+    raw = raw.replace(tagsSp[0], "");
+  }
+
+  // Match --project=val or --project val
+  const projEq = raw.match(/--project=(\S+)/);
+  const projSp = !projEq ? raw.match(/--project\s+(\S+)/) : null;
+  if (projEq) {
+    project = projEq[1]!;
+    raw = raw.replace(projEq[0], "");
+  } else if (projSp) {
+    project = projSp[1]!;
+    raw = raw.replace(projSp[0], "");
+  }
+
+  return { tags, project, text: raw.replace(/\s+/g, " ").trim() };
+}
+
+// ---------------------------------------------------------------------------
+// Format helpers for displaying tags and project in output lines.
+// ---------------------------------------------------------------------------
+
+function formatTagsBadge(tags: string[], defaultTags: string[]): string {
+  const extra = tags.filter((t) => !defaultTags.includes(t));
+  if (extra.length === 0) return "";
+  return ` [tags:${extra.join(",")}]`;
+}
+
+function formatProjectBadge(meta: Record<string, unknown> | undefined): string {
+  if (!meta || typeof meta.project !== "string") return "";
+  return ` [project:${meta.project}]`;
+}
+
 export default function register(api: PluginApi) {
   const cfg = (api.pluginConfig ?? {}) as {
     enabled?: boolean;
@@ -40,89 +95,139 @@ export default function register(api: PluginApi) {
 
   api.logger?.info?.(`[memory-docs] enabled. store=${storePath}`);
 
-  // Command: /remember-doc <text>
+  // Command: /remember-doc [--tags t1,t2] [--project name] <text>
   api.registerCommand({
     name: "remember-doc",
     description: "Save a documentation memory item (explicit capture)",
-    usage: "/remember-doc <text>",
+    usage: "/remember-doc [--tags t1,t2] [--project name] <text>",
     requireAuth: false,
     acceptsArgs: true,
     handler: async (ctx: CommandContext) => {
-      const text = String(ctx?.args ?? "").trim();
+      const rawArgs = String(ctx?.args ?? "").trim();
+      if (!rawArgs) {
+        return { text: "Usage: /remember-doc [--tags t1,t2] [--project name] <text>" };
+      }
+
+      const flags = parseFlags(rawArgs);
+      const text = flags.text;
       if (!text) {
-        return { text: "Usage: /remember-doc <text>" };
+        return { text: "Usage: /remember-doc [--tags t1,t2] [--project name] <text>" };
       }
 
       const r = redactSecrets ? redactor.redact(text) : { redactedText: text, hadSecrets: false, matches: [] };
+
+      // Merge user-provided tags with defaultTags (deduplicated)
+      const mergedTags = [...new Set([...defaultTags, ...flags.tags])];
+
+      // Build meta object
+      const meta: Record<string, unknown> = {};
+      if (r.hadSecrets) {
+        meta.redaction = { hadSecrets: true, matches: r.matches };
+      }
+      if (flags.project) {
+        meta.project = flags.project;
+      }
+
       const item: MemoryItem = {
         id: uuid(),
         kind: "doc",
         text: r.redactedText,
         createdAt: new Date().toISOString(),
-        tags: defaultTags,
+        tags: mergedTags,
         source: {
           channel: ctx?.channel,
           from: ctx?.from,
           conversationId: ctx?.conversationId,
           messageId: ctx?.messageId,
         },
-        meta: r.hadSecrets ? { redaction: { hadSecrets: true, matches: r.matches } } : undefined,
+        meta: Object.keys(meta).length > 0 ? meta : undefined,
       };
 
       await store.add(item);
 
-      const note = r.hadSecrets ? " (note: secrets were redacted)" : "";
-      return { text: `Saved docs memory.${note}` };
+      const parts: string[] = ["Saved docs memory."];
+      if (flags.tags.length > 0) parts.push(`Tags: ${mergedTags.join(", ")}.`);
+      if (flags.project) parts.push(`Project: ${flags.project}.`);
+      if (r.hadSecrets) parts.push("(note: secrets were redacted)");
+      return { text: parts.join(" ") };
     },
   });
 
-  // Command: /search-docs <query> [limit]
+  // Command: /search-docs [--tags t1,t2] [--project name] <query> [limit]
   api.registerCommand({
     name: "search-docs",
     description: "Search documentation memory items by query",
-    usage: "/search-docs <query> [limit]",
+    usage: "/search-docs [--tags t1,t2] [--project name] <query> [limit]",
     requireAuth: false,
     acceptsArgs: true,
     handler: async (ctx: CommandContext) => {
-      const args = String(ctx?.args ?? "").trim().split(/\s+/);
-      const lastArg = args[args.length - 1] ?? "";
-      const maybeLimit = Number(lastArg);
+      const rawArgs = String(ctx?.args ?? "").trim();
+      const flags = parseFlags(rawArgs);
+      const words = flags.text.split(/\s+/).filter(Boolean);
+      const lastWord = words[words.length - 1] ?? "";
+      const maybeLimit = Number(lastWord);
       let query: string;
       let limit: number;
-      if (!isNaN(maybeLimit) && maybeLimit >= 1 && args.length > 1) {
+      if (!isNaN(maybeLimit) && maybeLimit >= 1 && words.length > 1) {
         limit = safeLimit(maybeLimit, 5, 20);
-        query = args.slice(0, -1).join(" ");
+        query = words.slice(0, -1).join(" ");
       } else {
         limit = 5;
-        query = args.join(" ");
+        query = words.join(" ");
       }
-      if (!query) return { text: "Usage: /search-docs <query> [limit]" };
-      const hits = await store.search(query, { limit });
-      if (hits.length === 0) return { text: `No docs memories found for: ${query}` };
-      const lines = hits.map((h, n) => {
+      if (!query) return { text: "Usage: /search-docs [--tags t1,t2] [--project name] <query> [limit]" };
+
+      const searchOpts: { limit: number; tags?: string[] } = { limit };
+      if (flags.tags.length > 0) searchOpts.tags = flags.tags;
+
+      const hits = await store.search(query, searchOpts);
+
+      // Post-filter by project if requested
+      const filtered = flags.project
+        ? hits.filter((h) => h.item.meta && (h.item.meta as Record<string, unknown>).project === flags.project)
+        : hits;
+
+      if (filtered.length === 0) return { text: `No docs memories found for: ${query}` };
+      const lines = filtered.map((h, n) => {
         const shortId = h.item.id.length > 8 ? h.item.id.slice(0, 8) : h.item.id;
-        return `${n + 1}. [id:${shortId}] [score:${h.score.toFixed(2)}] ${h.item.text.slice(0, 120)}${h.item.text.length > 120 ? "…" : ""}`;
+        const tagsBadge = formatTagsBadge(h.item.tags ?? [], defaultTags);
+        const projBadge = formatProjectBadge(h.item.meta);
+        return `${n + 1}. [id:${shortId}] [score:${h.score.toFixed(2)}]${tagsBadge}${projBadge} ${h.item.text.slice(0, 120)}${h.item.text.length > 120 ? "…" : ""}`;
       });
       return { text: `Docs memory results for "${query}":\n${lines.join("\n")}` };
     },
   });
 
-  // Command: /list-docs [limit]
+  // Command: /list-docs [--tags t1,t2] [--project name] [limit]
   api.registerCommand({
     name: "list-docs",
     description: "List the most recent documentation memory items",
-    usage: "/list-docs [limit]",
+    usage: "/list-docs [--tags t1,t2] [--project name] [limit]",
     requireAuth: false,
     acceptsArgs: true,
     handler: async (ctx: CommandContext) => {
-      const limit = safeLimit(String(ctx?.args ?? "").trim(), 10, 50);
-      const items = await store.list({ limit });
-      if (items.length === 0) return { text: "No docs memories stored yet." };
-      const lines = items.map((i, n) => {
+      const rawArgs = String(ctx?.args ?? "").trim();
+      const flags = parseFlags(rawArgs);
+      const limit = safeLimit(flags.text, 10, 50);
+
+      const listOpts: { limit: number; tags?: string[] } = { limit };
+      if (flags.tags.length > 0) listOpts.tags = flags.tags;
+
+      const items = await store.list(listOpts);
+
+      // Post-filter by project if requested
+      const filtered = flags.project
+        ? items.filter((i) => i.meta && (i.meta as Record<string, unknown>).project === flags.project)
+        : items;
+
+      if (filtered.length === 0) return { text: "No docs memories stored yet." };
+      const lines = filtered.map((i, n) => {
         const shortId = i.id.length > 8 ? i.id.slice(0, 8) : i.id;
-        return `${n + 1}. [id:${shortId}] [${i.createdAt.slice(0, 10)}] ${i.text.slice(0, 120)}${i.text.length > 120 ? "…" : ""}`;
+        const tagsBadge = formatTagsBadge(i.tags ?? [], defaultTags);
+        const projBadge = formatProjectBadge(i.meta);
+        return `${n + 1}. [id:${shortId}] [${i.createdAt.slice(0, 10)}]${tagsBadge}${projBadge} ${i.text.slice(0, 120)}${i.text.length > 120 ? "…" : ""}`;
       });
-      return { text: `Docs memories (${items.length}):\n${lines.join("\n")}\n\nUse /forget-doc <id> to delete an item. Full IDs: ${items.map((i) => i.id).join(", ")}` };
+      return { text: `Docs memories (${filtered.length}):\n${lines.join("\n")}\n\nUse /forget-doc <id> to delete an item. Full IDs: ${filtered.map((i) => i.id).join(", ")}` };
     },
   });
 
@@ -151,6 +256,8 @@ export default function register(api: PluginApi) {
       properties: {
         query: { type: "string" },
         limit: { type: "number", minimum: 1, maximum: 20, default: 5 },
+        tags: { type: "array", items: { type: "string" }, description: "Filter results to items matching all given tags" },
+        project: { type: "string", description: "Filter results to items with this project name" },
       },
       required: ["query"],
     },
@@ -159,13 +266,29 @@ export default function register(api: PluginApi) {
       const limit = safeLimit(params['limit'], 5, 20);
       if (!q) return { hits: [] };
 
-      const hits = await store.search(q, { limit });
+      const searchOpts: { limit: number; tags?: string[] } = { limit };
+      const paramTags = params['tags'];
+      if (Array.isArray(paramTags) && paramTags.length > 0) {
+        searchOpts.tags = paramTags.map(String);
+      }
+
+      const hits = await store.search(q, searchOpts);
+
+      // Post-filter by project if requested
+      const paramProject = typeof params['project'] === "string" ? params['project'] : undefined;
+      const filtered = paramProject
+        ? hits.filter((h) => h.item.meta && (h.item.meta as Record<string, unknown>).project === paramProject)
+        : hits;
+
       return {
-        hits: hits.map((h) => ({
+        hits: filtered.map((h) => ({
           score: h.score,
           id: h.item.id,
           createdAt: h.item.createdAt,
           tags: h.item.tags,
+          project: h.item.meta && typeof (h.item.meta as Record<string, unknown>).project === "string"
+            ? (h.item.meta as Record<string, unknown>).project
+            : undefined,
           text: h.item.text,
         })),
       };

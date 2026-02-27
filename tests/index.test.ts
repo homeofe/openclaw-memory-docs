@@ -8,6 +8,7 @@ import type {
   SearchHit,
 } from "@elvatis_com/openclaw-memory-core";
 import { JsonlMemoryStore } from "@elvatis_com/openclaw-memory-core";
+import { parseFlags } from "../index.js";
 
 // ---------------------------------------------------------------------------
 // Mock the heavy dependencies so tests never touch the filesystem.
@@ -658,5 +659,330 @@ describe("openclaw-memory-docs plugin", () => {
       await handler({ query: "test", limit: 50 });
       expect(mockSearch).toHaveBeenCalledWith("test", { limit: 20 });
     });
+
+    it("passes tags filter to the store search", async () => {
+      mockSearch.mockResolvedValueOnce([]);
+      const handler = tools.get("docs_memory_search")!.handler;
+      await handler({ query: "test", tags: ["api", "auth"] });
+      expect(mockSearch).toHaveBeenCalledWith("test", { limit: 5, tags: ["api", "auth"] });
+    });
+
+    it("filters results by project when provided", async () => {
+      mockSearch.mockResolvedValueOnce([
+        {
+          item: { id: "p1", kind: "doc", text: "Match", createdAt: "2026-01-01T00:00:00Z", tags: ["docs"], meta: { project: "AEGIS" } },
+          score: 0.9,
+        },
+        {
+          item: { id: "p2", kind: "doc", text: "No match", createdAt: "2026-01-02T00:00:00Z", tags: ["docs"] },
+          score: 0.8,
+        },
+      ]);
+      const handler = tools.get("docs_memory_search")!.handler;
+      const result = (await handler({ query: "test", project: "AEGIS" })) as { hits: Array<{ id: string }> };
+      expect(result.hits).toHaveLength(1);
+      expect(result.hits[0]!.id).toBe("p1");
+    });
+
+    it("includes project in result objects", async () => {
+      mockSearch.mockResolvedValueOnce([
+        {
+          item: { id: "proj-1", kind: "doc", text: "With project", createdAt: "2026-01-01T00:00:00Z", tags: ["docs"], meta: { project: "AEGIS" } },
+          score: 0.9,
+        },
+      ]);
+      const handler = tools.get("docs_memory_search")!.handler;
+      const result = (await handler({ query: "test" })) as { hits: Array<{ project?: string }> };
+      expect(result.hits[0]!.project).toBe("AEGIS");
+    });
+
+    it("returns undefined project when item has no project metadata", async () => {
+      mockSearch.mockResolvedValueOnce([
+        {
+          item: { id: "no-proj", kind: "doc", text: "No project", createdAt: "2026-01-01T00:00:00Z", tags: ["docs"] },
+          score: 0.9,
+        },
+      ]);
+      const handler = tools.get("docs_memory_search")!.handler;
+      const result = (await handler({ query: "test" })) as { hits: Array<{ project?: string }> };
+      expect(result.hits[0]!.project).toBeUndefined();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // /remember-doc with --tags and --project (T-004)
+  // -------------------------------------------------------------------------
+
+  describe("/remember-doc with metadata flags", () => {
+    it("merges --tags with defaultTags", async () => {
+      const handler = commands.get("remember-doc")!.handler;
+      const result = await handler({ args: "--tags api,auth Some API auth note" });
+      expect(result.text).toContain("Saved docs memory.");
+      expect(result.text).toContain("Tags: docs, api, auth.");
+      const savedItem = mockAdd.mock.calls[0]![0] as MemoryItem;
+      expect(savedItem.tags).toEqual(["docs", "api", "auth"]);
+    });
+
+    it("accepts --tags=val syntax", async () => {
+      const handler = commands.get("remember-doc")!.handler;
+      await handler({ args: "--tags=infra,deploy Server setup notes" });
+      const savedItem = mockAdd.mock.calls[0]![0] as MemoryItem;
+      expect(savedItem.tags).toEqual(["docs", "infra", "deploy"]);
+    });
+
+    it("stores project in meta.project", async () => {
+      const handler = commands.get("remember-doc")!.handler;
+      const result = await handler({ args: "--project AEGIS Important AEGIS note" });
+      expect(result.text).toContain("Project: AEGIS.");
+      const savedItem = mockAdd.mock.calls[0]![0] as MemoryItem;
+      expect(savedItem.meta).toBeDefined();
+      expect((savedItem.meta as Record<string, unknown>).project).toBe("AEGIS");
+    });
+
+    it("accepts --project=val syntax", async () => {
+      const handler = commands.get("remember-doc")!.handler;
+      await handler({ args: "--project=CRM Note for CRM project" });
+      const savedItem = mockAdd.mock.calls[0]![0] as MemoryItem;
+      expect((savedItem.meta as Record<string, unknown>).project).toBe("CRM");
+    });
+
+    it("combines --tags and --project together", async () => {
+      const handler = commands.get("remember-doc")!.handler;
+      const result = await handler({ args: "--tags api --project AEGIS Auth flow doc" });
+      expect(result.text).toContain("Tags: docs, api.");
+      expect(result.text).toContain("Project: AEGIS.");
+      const savedItem = mockAdd.mock.calls[0]![0] as MemoryItem;
+      expect(savedItem.tags).toEqual(["docs", "api"]);
+      expect((savedItem.meta as Record<string, unknown>).project).toBe("AEGIS");
+    });
+
+    it("deduplicates tags when user provides a tag that is already in defaultTags", async () => {
+      const handler = commands.get("remember-doc")!.handler;
+      await handler({ args: "--tags docs,api Already has docs tag" });
+      const savedItem = mockAdd.mock.calls[0]![0] as MemoryItem;
+      expect(savedItem.tags).toEqual(["docs", "api"]);
+    });
+
+    it("returns usage when only flags are provided with no text", async () => {
+      const handler = commands.get("remember-doc")!.handler;
+      const result = await handler({ args: "--tags api --project X" });
+      expect(result.text).toContain("Usage:");
+    });
+
+    it("does not set meta when neither secrets nor project are present", async () => {
+      const handler = commands.get("remember-doc")!.handler;
+      await handler({ args: "Plain text no flags" });
+      const savedItem = mockAdd.mock.calls[0]![0] as MemoryItem;
+      expect(savedItem.meta).toBeUndefined();
+    });
+
+    it("sets meta with both redaction and project when both apply", async () => {
+      const handler = commands.get("remember-doc")!.handler;
+      await handler({
+        args: "--project SecretProj my key is sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn",
+      });
+      const savedItem = mockAdd.mock.calls[0]![0] as MemoryItem;
+      expect(savedItem.meta).toBeDefined();
+      expect((savedItem.meta as Record<string, unknown>).project).toBe("SecretProj");
+      expect((savedItem.meta as Record<string, unknown>).redaction).toBeDefined();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // /search-docs with metadata display and filtering (T-004)
+  // -------------------------------------------------------------------------
+
+  describe("/search-docs with metadata", () => {
+    it("shows tags badge for items with non-default tags", async () => {
+      mockSearch.mockResolvedValueOnce([
+        {
+          item: { id: "tagged-1234", kind: "doc", text: "Tagged item", createdAt: "2026-01-01T00:00:00Z", tags: ["docs", "api"] },
+          score: 0.9,
+        },
+      ]);
+      const handler = commands.get("search-docs")!.handler;
+      const result = await handler({ args: "tagged" });
+      expect(result.text).toContain("[tags:api]");
+    });
+
+    it("shows project badge for items with project metadata", async () => {
+      mockSearch.mockResolvedValueOnce([
+        {
+          item: { id: "proj-1234", kind: "doc", text: "Project item", createdAt: "2026-01-01T00:00:00Z", tags: ["docs"], meta: { project: "AEGIS" } },
+          score: 0.9,
+        },
+      ]);
+      const handler = commands.get("search-docs")!.handler;
+      const result = await handler({ args: "project" });
+      expect(result.text).toContain("[project:AEGIS]");
+    });
+
+    it("does not show tags badge when only default tags are present", async () => {
+      mockSearch.mockResolvedValueOnce([
+        {
+          item: { id: "default-1234", kind: "doc", text: "Default tags only", createdAt: "2026-01-01T00:00:00Z", tags: ["docs"] },
+          score: 0.9,
+        },
+      ]);
+      const handler = commands.get("search-docs")!.handler;
+      const result = await handler({ args: "default" });
+      expect(result.text).not.toContain("[tags:");
+    });
+
+    it("passes --tags filter to the store search", async () => {
+      mockSearch.mockResolvedValueOnce([]);
+      const handler = commands.get("search-docs")!.handler;
+      await handler({ args: "--tags api some query" });
+      expect(mockSearch).toHaveBeenCalledWith("some query", { limit: 5, tags: ["api"] });
+    });
+
+    it("post-filters by --project flag", async () => {
+      mockSearch.mockResolvedValueOnce([
+        {
+          item: { id: "aegis-1", kind: "doc", text: "AEGIS doc", createdAt: "2026-01-01T00:00:00Z", tags: ["docs"], meta: { project: "AEGIS" } },
+          score: 0.9,
+        },
+        {
+          item: { id: "other-1", kind: "doc", text: "Other doc", createdAt: "2026-01-02T00:00:00Z", tags: ["docs"], meta: { project: "CRM" } },
+          score: 0.8,
+        },
+      ]);
+      const handler = commands.get("search-docs")!.handler;
+      const result = await handler({ args: "--project AEGIS doc" });
+      expect(result.text).toContain("AEGIS doc");
+      expect(result.text).not.toContain("Other doc");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // /list-docs with metadata display and filtering (T-004)
+  // -------------------------------------------------------------------------
+
+  describe("/list-docs with metadata", () => {
+    it("shows tags badge for items with non-default tags", async () => {
+      mockList.mockResolvedValueOnce([
+        { id: "tagged-list", kind: "doc", text: "Tagged item", createdAt: "2026-01-01T00:00:00Z", tags: ["docs", "infra"] },
+      ]);
+      const handler = commands.get("list-docs")!.handler;
+      const result = await handler({ args: "" });
+      expect(result.text).toContain("[tags:infra]");
+    });
+
+    it("shows project badge for items with project metadata", async () => {
+      mockList.mockResolvedValueOnce([
+        { id: "proj-list", kind: "doc", text: "Project item", createdAt: "2026-01-01T00:00:00Z", tags: ["docs"], meta: { project: "AEGIS" } },
+      ]);
+      const handler = commands.get("list-docs")!.handler;
+      const result = await handler({ args: "" });
+      expect(result.text).toContain("[project:AEGIS]");
+    });
+
+    it("passes --tags filter to the store list", async () => {
+      mockList.mockResolvedValueOnce([]);
+      const handler = commands.get("list-docs")!.handler;
+      await handler({ args: "--tags api" });
+      expect(mockList).toHaveBeenCalledWith({ limit: 10, tags: ["api"] });
+    });
+
+    it("post-filters by --project flag", async () => {
+      mockList.mockResolvedValueOnce([
+        { id: "aegis-l1", kind: "doc", text: "AEGIS item", createdAt: "2026-01-01T00:00:00Z", tags: ["docs"], meta: { project: "AEGIS" } },
+        { id: "crm-l1", kind: "doc", text: "CRM item", createdAt: "2026-01-02T00:00:00Z", tags: ["docs"], meta: { project: "CRM" } },
+      ]);
+      const handler = commands.get("list-docs")!.handler;
+      const result = await handler({ args: "--project AEGIS" });
+      expect(result.text).toContain("AEGIS item");
+      expect(result.text).not.toContain("CRM item");
+      expect(result.text).toContain("(1)");
+    });
+
+    it("combines --tags and --project filtering", async () => {
+      mockList.mockResolvedValueOnce([
+        { id: "both-1", kind: "doc", text: "Both match", createdAt: "2026-01-01T00:00:00Z", tags: ["docs", "api"], meta: { project: "AEGIS" } },
+      ]);
+      const handler = commands.get("list-docs")!.handler;
+      const result = await handler({ args: "--tags api --project AEGIS" });
+      expect(mockList).toHaveBeenCalledWith({ limit: 10, tags: ["api"] });
+      expect(result.text).toContain("Both match");
+    });
+
+    it("returns empty message when project filter excludes all items", async () => {
+      mockList.mockResolvedValueOnce([
+        { id: "no-match", kind: "doc", text: "Wrong project", createdAt: "2026-01-01T00:00:00Z", tags: ["docs"], meta: { project: "CRM" } },
+      ]);
+      const handler = commands.get("list-docs")!.handler;
+      const result = await handler({ args: "--project AEGIS" });
+      expect(result.text).toContain("No docs memories stored yet.");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseFlags unit tests
+// ---------------------------------------------------------------------------
+
+describe("parseFlags", () => {
+  it("returns empty tags and no project for plain text", () => {
+    const result = parseFlags("hello world");
+    expect(result.tags).toEqual([]);
+    expect(result.project).toBeUndefined();
+    expect(result.text).toBe("hello world");
+  });
+
+  it("parses --tags=val syntax", () => {
+    const result = parseFlags("--tags=api,auth some text");
+    expect(result.tags).toEqual(["api", "auth"]);
+    expect(result.text).toBe("some text");
+  });
+
+  it("parses --tags val syntax", () => {
+    const result = parseFlags("--tags infra,deploy some text");
+    expect(result.tags).toEqual(["infra", "deploy"]);
+    expect(result.text).toBe("some text");
+  });
+
+  it("parses --project=val syntax", () => {
+    const result = parseFlags("--project=AEGIS some text");
+    expect(result.project).toBe("AEGIS");
+    expect(result.text).toBe("some text");
+  });
+
+  it("parses --project val syntax", () => {
+    const result = parseFlags("--project AEGIS some text");
+    expect(result.project).toBe("AEGIS");
+    expect(result.text).toBe("some text");
+  });
+
+  it("parses both --tags and --project together", () => {
+    const result = parseFlags("--tags api --project AEGIS the actual text");
+    expect(result.tags).toEqual(["api"]);
+    expect(result.project).toBe("AEGIS");
+    expect(result.text).toBe("the actual text");
+  });
+
+  it("handles single tag", () => {
+    const result = parseFlags("--tags=api text");
+    expect(result.tags).toEqual(["api"]);
+  });
+
+  it("filters out empty tags from trailing commas", () => {
+    const result = parseFlags("--tags=api, text");
+    expect(result.tags).toEqual(["api"]);
+  });
+
+  it("handles flags at end of string", () => {
+    const result = parseFlags("some text --tags=api");
+    expect(result.tags).toEqual(["api"]);
+    expect(result.text).toBe("some text");
+  });
+
+  it("returns empty text when only flags are given", () => {
+    const result = parseFlags("--tags api --project X");
+    expect(result.text).toBe("");
+  });
+
+  it("normalizes whitespace in remaining text", () => {
+    const result = parseFlags("--tags api   extra   spaces   here");
+    expect(result.text).toBe("extra spaces here");
   });
 });

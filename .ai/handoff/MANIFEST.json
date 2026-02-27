@@ -3,11 +3,11 @@
   "project": "openclaw-memory-docs",
   "last_session": {
     "agent": "claude-code",
-    "session_id": "t003-search-ids-2026-02-27",
-    "timestamp": "2026-02-27T04:08:00.000Z",
-    "commit": "87aaf08",
+    "session_id": "t004-tag-project-metadata-2026-02-27",
+    "timestamp": "2026-02-27T04:30:00.000Z",
+    "commit": "pending",
     "phase": "implementation",
-    "duration_minutes": 3
+    "duration_minutes": 5
   },
   "files": {
     "STATUS.md": {
@@ -39,7 +39,7 @@
       "summary": "AAHP v3 pipeline: research -> architecture -> implement -> review -> complete"
     }
   },
-  "quick_context": "T-003 complete: /search-docs now shows short item IDs [id:SHORTID] in output, matching /list-docs format. 51 tests passing. Type-check clean. Next: T-004 (tag/project metadata).",
+  "quick_context": "T-004 complete: /remember-doc now supports --tags and --project flags. Tags merge with defaultTags, project stored in meta.project. /list-docs and /search-docs show [tags:...] and [project:...] badges and accept --tags/--project filters. docs_memory_search tool also supports tags/project params. 86 tests passing. Type-check clean. Next: T-005 (docs update).",
   "next_task_id": 7,
   "tasks": {
     "T-001": {
@@ -64,16 +64,17 @@
       "priority": "high",
       "depends_on": [],
       "created": "2026-02-27T01:00:00Z",
-      "completed": "2026-02-27T04:08:00.000Z"
+      "completed": "2026-02-27T03:09:18.712Z"
     },
     "T-004": {
       "title": "Add tag/project metadata support to /remember-doc (#1)",
-      "status": "ready",
+      "status": "done",
       "priority": "medium",
       "depends_on": [
         "T-002"
       ],
-      "created": "2026-02-27T01:00:00Z"
+      "created": "2026-02-27T01:00:00Z",
+      "completed": "2026-02-27T04:30:00.000Z"
     },
     "T-005": {
       "title": "Update README.md and SKILL.md to document all commands (#5)",
