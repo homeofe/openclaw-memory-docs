@@ -4,10 +4,10 @@
   "last_session": {
     "agent": "claude-code",
     "session_id": "t004-tag-project-metadata-2026-02-27",
-    "timestamp": "2026-02-27T04:30:00.000Z",
+    "timestamp": "2026-02-27T03:31:56.591Z",
     "commit": "3f80227",
     "phase": "implementation",
-    "duration_minutes": 5
+    "duration_minutes": 2
   },
   "files": {
     "STATUS.md": {
@@ -74,7 +74,7 @@
         "T-002"
       ],
       "created": "2026-02-27T01:00:00Z",
-      "completed": "2026-02-27T04:30:00.000Z"
+      "completed": "2026-02-27T03:31:56.591Z"
     },
     "T-005": {
       "title": "Update README.md and SKILL.md to document all commands (#5)",
