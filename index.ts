@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import {
   DefaultRedactor,
@@ -73,6 +73,57 @@ function formatProjectBadge(meta: Record<string, unknown> | undefined): string {
 // Markdown export helper: converts a MemoryItem to a markdown file with
 // YAML frontmatter containing metadata and the memory text as body.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Markdown import helper: parses a markdown file with YAML frontmatter back
+// into a MemoryItem. Returns undefined if the format is invalid.
+// ---------------------------------------------------------------------------
+
+export function parseMarkdownToItem(content: string): MemoryItem | undefined {
+  const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n\n?([\s\S]*)/);
+  if (!fmMatch) return undefined;
+
+  const frontmatter = fmMatch[1] ?? "";
+  const body = (fmMatch[2] ?? "").trimEnd();
+
+  // Parse frontmatter fields
+  const idMatch = frontmatter.match(/^id:\s*(.+)$/m);
+  const kindMatch = frontmatter.match(/^kind:\s*(.+)$/m);
+  const createdAtMatch = frontmatter.match(/^createdAt:\s*(.+)$/m);
+  const projectMatch = frontmatter.match(/^project:\s*(.+)$/m);
+
+  const id = idMatch?.[1]?.trim();
+  const kind = kindMatch?.[1]?.trim();
+  const createdAt = createdAtMatch?.[1]?.trim();
+
+  if (!id || !kind || !createdAt || !body) return undefined;
+
+  // Parse tags (YAML list format)
+  const tags: string[] = [];
+  const tagsSection = frontmatter.match(/^tags:\n((?:\s+-\s+.+\n?)*)/m);
+  if (tagsSection) {
+    const tagLines = tagsSection[1]?.match(/^\s+-\s+(.+)$/gm) ?? [];
+    for (const line of tagLines) {
+      const val = line.match(/^\s+-\s+(.+)$/)?.[1]?.trim();
+      if (val) tags.push(val);
+    }
+  }
+
+  const meta: Record<string, unknown> = {};
+  const project = projectMatch?.[1]?.trim();
+  if (project) meta.project = project;
+
+  const item: MemoryItem = {
+    id,
+    kind: kind as MemoryItem["kind"],
+    text: body,
+    createdAt,
+  };
+  if (tags.length > 0) item.tags = tags;
+  if (Object.keys(meta).length > 0) item.meta = meta;
+
+  return item;
+}
 
 export function formatAsMarkdown(item: MemoryItem): string {
   const lines: string[] = ["---"];
@@ -331,6 +382,70 @@ export default function register(api: PluginApi) {
       return {
         text: `Exported ${count} memory item${count !== 1 ? "s" : ""} to ${targetDir}`,
       };
+    },
+  });
+
+  // Command: /import-docs [path]
+  api.registerCommand({
+    name: "import-docs",
+    description: "Import documentation memories from exported markdown files",
+    usage: "/import-docs [path]",
+    requireAuth: true,
+    acceptsArgs: true,
+    handler: async (ctx: CommandContext) => {
+      const rawArgs = String(ctx?.args ?? "").trim();
+
+      // Determine source directory
+      let sourceDir: string;
+      try {
+        const rawPath = rawArgs || cfg.exportPath || "~/.openclaw/workspace/memory/docs-export";
+        sourceDir = safePath(expandHome(rawPath), "[memory-docs] import path");
+      } catch (err: unknown) {
+        return { text: `Invalid import path: ${(err as Error).message}` };
+      }
+
+      // Read all .md files from the directory
+      let files: string[];
+      try {
+        const entries = await readdir(sourceDir);
+        files = entries.filter((f) => f.endsWith(".md")).sort();
+      } catch (err: unknown) {
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code === "ENOENT") {
+          return { text: `Import directory not found: ${sourceDir}` };
+        }
+        return { text: `Failed to read import directory: ${(err as Error).message}` };
+      }
+
+      if (files.length === 0) {
+        return { text: `No markdown files found in ${sourceDir}` };
+      }
+
+      let imported = 0;
+      let skipped = 0;
+
+      for (const file of files) {
+        const content = await readFile(join(sourceDir, file), "utf-8");
+        const item = parseMarkdownToItem(content);
+        if (!item) {
+          skipped++;
+          continue;
+        }
+
+        // Check if item already exists (by ID) to avoid duplicates
+        const existing = await store.get(item.id);
+        if (existing) {
+          skipped++;
+          continue;
+        }
+
+        await store.add(item);
+        imported++;
+      }
+
+      const parts: string[] = [`Imported ${imported} memory item${imported !== 1 ? "s" : ""} from ${sourceDir}.`];
+      if (skipped > 0) parts.push(`Skipped ${skipped} (duplicate or invalid).`);
+      return { text: parts.join(" ") };
     },
   });
 
