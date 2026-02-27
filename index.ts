@@ -99,9 +99,10 @@ export default function register(api: PluginApi) {
       if (!query) return { text: "Usage: /search-docs <query> [limit]" };
       const hits = await store.search(query, { limit });
       if (hits.length === 0) return { text: `No docs memories found for: ${query}` };
-      const lines = hits.map((h, n) =>
-        `${n + 1}. [score:${h.score.toFixed(2)}] ${h.item.text.slice(0, 120)}${h.item.text.length > 120 ? "…" : ""}`
-      );
+      const lines = hits.map((h, n) => {
+        const shortId = h.item.id.length > 8 ? h.item.id.slice(0, 8) : h.item.id;
+        return `${n + 1}. [id:${shortId}] [score:${h.score.toFixed(2)}] ${h.item.text.slice(0, 120)}${h.item.text.length > 120 ? "…" : ""}`;
+      });
       return { text: `Docs memory results for "${query}":\n${lines.join("\n")}` };
     },
   });

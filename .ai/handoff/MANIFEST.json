@@ -2,12 +2,12 @@
   "aahp_version": "3.0",
   "project": "openclaw-memory-docs",
   "last_session": {
-    "agent": "Claude Opus 4.6",
-    "session_id": "unit-tests-2026-02-27",
-    "timestamp": "2026-02-27T03:38:00Z",
-    "commit": "8daa735",
+    "agent": "claude-code",
+    "session_id": "t003-search-ids-2026-02-27",
+    "timestamp": "2026-02-27T04:08:00.000Z",
+    "commit": "pending",
     "phase": "implementation",
-    "duration_minutes": 10
+    "duration_minutes": 3
   },
   "files": {
     "STATUS.md": {
@@ -39,7 +39,7 @@
       "summary": "AAHP v3 pipeline: research -> architecture -> implement -> review -> complete"
     }
   },
-  "quick_context": "T-002 complete: 50 unit tests covering all 4 commands, 1 tool, config edge cases, limit clamping, redaction, and metadata. All pass. Type-check clean. Next: T-003 (show IDs in /search-docs output).",
+  "quick_context": "T-003 complete: /search-docs now shows short item IDs [id:SHORTID] in output, matching /list-docs format. 51 tests passing. Type-check clean. Next: T-004 (tag/project metadata).",
   "next_task_id": 7,
   "tasks": {
     "T-001": {
@@ -52,38 +52,45 @@
     },
     "T-002": {
       "title": "Add unit tests for all commands and the search tool (#3)",
-      "status": "completed",
+      "status": "done",
       "priority": "high",
       "depends_on": [],
       "created": "2026-02-27T01:00:00Z",
-      "completed": "2026-02-27T03:38:00Z"
+      "completed": "2026-02-27T02:41:41.205Z"
     },
     "T-003": {
       "title": "Show item IDs in /list-docs and /search-docs output (#4)",
-      "status": "ready",
+      "status": "done",
       "priority": "high",
       "depends_on": [],
-      "created": "2026-02-27T01:00:00Z"
+      "created": "2026-02-27T01:00:00Z",
+      "completed": "2026-02-27T04:08:00.000Z"
     },
     "T-004": {
       "title": "Add tag/project metadata support to /remember-doc (#1)",
       "status": "ready",
       "priority": "medium",
-      "depends_on": ["T-002"],
+      "depends_on": [
+        "T-002"
+      ],
       "created": "2026-02-27T01:00:00Z"
     },
     "T-005": {
       "title": "Update README.md and SKILL.md to document all commands (#5)",
-      "status": "blocked",
+      "status": "ready",
       "priority": "medium",
-      "depends_on": ["T-003"],
+      "depends_on": [
+        "T-003"
+      ],
       "created": "2026-02-27T01:00:00Z"
     },
     "T-006": {
       "title": "Implement export/sync mode for git-first workflows (#2)",
       "status": "blocked",
       "priority": "low",
-      "depends_on": ["T-004"],
+      "depends_on": [
+        "T-004"
+      ],
       "created": "2026-02-27T01:00:00Z"
     }
   }

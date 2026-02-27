@@ -315,11 +315,11 @@ describe("openclaw-memory-docs plugin", () => {
       expect(result.text).toContain("No docs memories found");
     });
 
-    it("returns formatted results for matching items", async () => {
+    it("returns formatted results with IDs for matching items (issue #4)", async () => {
       mockSearch.mockResolvedValueOnce([
         {
           item: {
-            id: "abc123",
+            id: "abc12345-6789-0abc-def0-123456789abc",
             kind: "doc",
             text: "First matching doc about residency",
             createdAt: "2026-01-15T00:00:00Z",
@@ -329,7 +329,7 @@ describe("openclaw-memory-docs plugin", () => {
         },
         {
           item: {
-            id: "def456",
+            id: "def45678-9abc-0def-1234-567890abcdef",
             kind: "doc",
             text: "Second doc about banking",
             createdAt: "2026-01-16T00:00:00Z",
@@ -345,6 +345,27 @@ describe("openclaw-memory-docs plugin", () => {
       expect(result.text).toContain("2.");
       expect(result.text).toContain("0.85");
       expect(result.text).toContain("First matching doc");
+      // Issue #4: search results must include item IDs
+      expect(result.text).toContain("[id:abc12345]");
+      expect(result.text).toContain("[id:def45678]");
+    });
+
+    it("shows short IDs for items with IDs shorter than 8 chars in search results", async () => {
+      mockSearch.mockResolvedValueOnce([
+        {
+          item: {
+            id: "tiny",
+            kind: "doc",
+            text: "Short id search result",
+            createdAt: "2026-02-01T00:00:00Z",
+            tags: ["docs"],
+          },
+          score: 0.75,
+        },
+      ]);
+      const handler = commands.get("search-docs")!.handler;
+      const result = await handler({ args: "short" });
+      expect(result.text).toContain("[id:tiny]");
     });
 
     it("parses an explicit limit from args", async () => {
