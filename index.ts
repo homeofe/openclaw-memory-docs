@@ -117,10 +117,11 @@ export default function register(api: PluginApi) {
       const limit = safeLimit(String(ctx?.args ?? "").trim(), 10, 50);
       const items = await store.list({ limit });
       if (items.length === 0) return { text: "No docs memories stored yet." };
-      const lines = items.map((i, n) =>
-        `${n + 1}. [${i.createdAt.slice(0, 10)}] ${i.text.slice(0, 120)}${i.text.length > 120 ? "…" : ""}`
-      );
-      return { text: `Docs memories (${items.length}):\n${lines.join("\n")}` };
+      const lines = items.map((i, n) => {
+        const shortId = i.id.length > 8 ? i.id.slice(0, 8) : i.id;
+        return `${n + 1}. [id:${shortId}] [${i.createdAt.slice(0, 10)}] ${i.text.slice(0, 120)}${i.text.length > 120 ? "…" : ""}`;
+      });
+      return { text: `Docs memories (${items.length}):\n${lines.join("\n")}\n\nUse /forget-doc <id> to delete an item. Full IDs: ${items.map((i) => i.id).join(", ")}` };
     },
   });
 
