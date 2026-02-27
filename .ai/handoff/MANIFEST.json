@@ -3,11 +3,11 @@
   "project": "openclaw-memory-docs",
   "last_session": {
     "agent": "claude-code",
-    "session_id": "t005-docs-update-2026-02-27",
-    "timestamp": "2026-02-27T04:01:57.935Z",
-    "commit": "5f6499c",
+    "session_id": "t007-export-sync-2026-02-27",
+    "timestamp": "2026-02-27T08:50:00Z",
+    "commit": "pending",
     "phase": "implementation",
-    "duration_minutes": 2
+    "duration_minutes": 15
   },
   "files": {
     "STATUS.md": {
@@ -39,8 +39,8 @@
       "summary": "AAHP v3 pipeline: research -> architecture -> implement -> review -> complete"
     }
   },
-  "quick_context": "T-005 complete: README.md and SKILL.md fully document all 4 commands (/remember-doc, /search-docs, /list-docs, /forget-doc), the docs_memory_search tool, and all config options including --tags/--project flags. 86 tests passing. Type-check clean. Remaining: T-006 (export/sync mode).",
-  "next_task_id": 7,
+  "quick_context": "T-007 complete: /export-docs command added for git-first workflows. Exports memory items as individual markdown files with YAML frontmatter. Supports --tags/--project filtering and custom export paths. New exportPath config option. 108 tests passing. Type-check clean. All v0.2 tasks done (T-001 through T-007). T-006 superseded by T-007.",
+  "next_task_id": 8,
   "tasks": {
     "T-001": {
       "title": "Define v0.2 roadmap items as issues and prioritize",
@@ -88,19 +88,22 @@
     },
     "T-006": {
       "title": "Implement export/sync mode for git-first workflows (#2)",
-      "status": "blocked",
+      "status": "done",
       "priority": "low",
       "depends_on": [
         "T-004"
       ],
-      "created": "2026-02-27T01:00:00Z"
+      "created": "2026-02-27T01:00:00Z",
+      "completed": "2026-02-27T08:50:00Z",
+      "note": "Superseded by T-007 which implements the same feature"
     },
     "T-007": {
       "title": "Add export/sync mode (write memories to markdown files)",
-      "status": "ready",
+      "status": "done",
       "priority": "low",
       "depends_on": [],
       "created": "2026-02-27T08:40:56Z",
+      "completed": "2026-02-27T08:50:00Z",
       "github_issue": "https://github.com/homeofe/openclaw-memory-docs/issues/2"
     }
   }
