@@ -7,6 +7,7 @@ import type {
   MemoryItem,
   SearchHit,
 } from "@elvatis_com/openclaw-memory-core";
+import { JsonlMemoryStore } from "@elvatis_com/openclaw-memory-core";
 
 // ---------------------------------------------------------------------------
 // Mock the heavy dependencies so tests never touch the filesystem.
@@ -100,6 +101,101 @@ describe("openclaw-memory-docs plugin", () => {
       expect(mock.commands.size).toBe(0);
       expect(mock.tools.size).toBe(0);
     });
+
+    it("logs info on successful initialization", async () => {
+      const mod = await import("../index.js");
+      const mock = createMockApi();
+      mod.default(mock.api);
+      expect(mock.api.logger!.info).toHaveBeenCalledTimes(1);
+      expect(mock.api.logger!.info).toHaveBeenCalledWith(
+        expect.stringContaining("[memory-docs] enabled")
+      );
+    });
+
+    it("logs error and does not register on invalid storePath", async () => {
+      const mod = await import("../index.js");
+      const mock = createMockApi({ storePath: "/../../../etc/passwd" });
+      mod.default(mock.api);
+      expect(mock.api.logger!.error).toHaveBeenCalledTimes(1);
+      expect(mock.api.logger!.error).toHaveBeenCalledWith(
+        expect.stringContaining("[memory-docs]")
+      );
+      expect(mock.commands.size).toBe(0);
+      expect(mock.tools.size).toBe(0);
+    });
+
+    it("passes custom maxItems to the store constructor", async () => {
+      const mod = await import("../index.js");
+      const MockedStore = JsonlMemoryStore as unknown as ReturnType<typeof vi.fn>;
+      MockedStore.mockClear();
+      const mock = createMockApi({ maxItems: 100 });
+      mod.default(mock.api);
+      expect(MockedStore).toHaveBeenCalledWith(
+        expect.objectContaining({ maxItems: 100 })
+      );
+    });
+
+    it("uses default maxItems of 5000 when not configured", async () => {
+      const mod = await import("../index.js");
+      const MockedStore = JsonlMemoryStore as unknown as ReturnType<typeof vi.fn>;
+      MockedStore.mockClear();
+      const mock = createMockApi();
+      mod.default(mock.api);
+      expect(MockedStore).toHaveBeenCalledWith(
+        expect.objectContaining({ maxItems: 5000 })
+      );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Command metadata
+  // -------------------------------------------------------------------------
+
+  describe("command metadata", () => {
+    it("all commands accept args", () => {
+      for (const name of ["remember-doc", "search-docs", "list-docs", "forget-doc"]) {
+        expect(commands.get(name)!.acceptsArgs).toBe(true);
+      }
+    });
+
+    it("only forget-doc requires auth", () => {
+      expect(commands.get("remember-doc")!.requireAuth).toBe(false);
+      expect(commands.get("search-docs")!.requireAuth).toBe(false);
+      expect(commands.get("list-docs")!.requireAuth).toBe(false);
+      expect(commands.get("forget-doc")!.requireAuth).toBe(true);
+    });
+
+    it("all commands have a usage string starting with /", () => {
+      for (const [, def] of commands) {
+        expect(def.usage).toMatch(/^\//);
+      }
+    });
+
+    it("all commands have non-empty descriptions", () => {
+      for (const [, def] of commands) {
+        expect(def.description.length).toBeGreaterThan(0);
+      }
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Tool schema
+  // -------------------------------------------------------------------------
+
+  describe("docs_memory_search tool schema", () => {
+    it("has a valid inputSchema with query as required", () => {
+      const schema = tools.get("docs_memory_search")!.inputSchema as Record<string, unknown>;
+      expect(schema.type).toBe("object");
+      expect(schema.required).toEqual(["query"]);
+    });
+
+    it("defines query as string and limit as number in the schema", () => {
+      const schema = tools.get("docs_memory_search")!.inputSchema as {
+        properties: Record<string, { type: string }>;
+      };
+      expect(schema.properties.query.type).toBe("string");
+      expect(schema.properties.limit.type).toBe("number");
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -140,6 +236,45 @@ describe("openclaw-memory-docs plugin", () => {
       const savedItem = mockAdd.mock.calls[0]![0] as MemoryItem;
       expect(savedItem.text).not.toContain("sk-proj-");
       expect(savedItem.text).toContain("[REDACTED:OPENAI_KEY]");
+    });
+
+    it("generates a valid id and ISO createdAt on the saved item", async () => {
+      const handler = commands.get("remember-doc")!.handler;
+      await handler({ args: "structure check" });
+      const savedItem = mockAdd.mock.calls[0]![0] as MemoryItem;
+      expect(savedItem.id).toBeTruthy();
+      expect(savedItem.id.length).toBeGreaterThan(0);
+      // createdAt should be a valid ISO 8601 date string
+      expect(new Date(savedItem.createdAt).toISOString()).toBe(savedItem.createdAt);
+    });
+
+    it("does not set meta.redaction when no secrets are found", async () => {
+      const handler = commands.get("remember-doc")!.handler;
+      await handler({ args: "clean text no secrets" });
+      const savedItem = mockAdd.mock.calls[0]![0] as MemoryItem;
+      expect(savedItem.meta).toBeUndefined();
+    });
+
+    it("uses custom defaultTags from config", async () => {
+      const mod = await import("../index.js");
+      const mock = createMockApi({ defaultTags: ["custom", "project-x"] });
+      mod.default(mock.api);
+      const handler = mock.commands.get("remember-doc")!.handler;
+      await handler({ args: "tagged text" });
+      const savedItem = mockAdd.mock.calls[0]![0] as MemoryItem;
+      expect(savedItem.tags).toEqual(["custom", "project-x"]);
+    });
+
+    it("skips redaction when redactSecrets is false", async () => {
+      const mod = await import("../index.js");
+      const mock = createMockApi({ redactSecrets: false });
+      mod.default(mock.api);
+      const handler = mock.commands.get("remember-doc")!.handler;
+      const secretText = "my key is sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn";
+      const result = await handler({ args: secretText });
+      expect(result.text).not.toContain("secrets were redacted");
+      const savedItem = mockAdd.mock.calls[0]![0] as MemoryItem;
+      expect(savedItem.text).toContain("sk-proj-");
     });
 
     it("preserves source context from the command context", async () => {
@@ -224,6 +359,20 @@ describe("openclaw-memory-docs plugin", () => {
       const handler = commands.get("search-docs")!.handler;
       await handler({ args: "banking setup" });
       expect(mockSearch).toHaveBeenCalledWith("banking setup", { limit: 5 });
+    });
+
+    it("clamps limit to maximum of 20", async () => {
+      mockSearch.mockResolvedValueOnce([]);
+      const handler = commands.get("search-docs")!.handler;
+      await handler({ args: "query 99" });
+      expect(mockSearch).toHaveBeenCalledWith("query", { limit: 20 });
+    });
+
+    it("includes the query in the 'no results' message", async () => {
+      mockSearch.mockResolvedValueOnce([]);
+      const handler = commands.get("search-docs")!.handler;
+      const result = await handler({ args: "unicorn setup" });
+      expect(result.text).toContain("unicorn setup");
     });
 
     it("truncates long text in results to 120 characters", async () => {
@@ -338,6 +487,52 @@ describe("openclaw-memory-docs plugin", () => {
       await handler({ args: "" });
       expect(mockList).toHaveBeenCalledWith({ limit: 10 });
     });
+
+    it("clamps limit to maximum of 50", async () => {
+      mockList.mockResolvedValueOnce([]);
+      const handler = commands.get("list-docs")!.handler;
+      await handler({ args: "999" });
+      expect(mockList).toHaveBeenCalledWith({ limit: 50 });
+    });
+
+    it("truncates long text in list output to 120 characters", async () => {
+      const longText = "B".repeat(200);
+      mockList.mockResolvedValueOnce([
+        {
+          id: "trunc-id-1234",
+          kind: "doc",
+          text: longText,
+          createdAt: "2026-02-01T00:00:00Z",
+          tags: ["docs"],
+        },
+      ]);
+      const handler = commands.get("list-docs")!.handler;
+      const result = await handler({ args: "" });
+      expect(result.text).not.toContain("B".repeat(200));
+      expect(result.text).toContain("B".repeat(120));
+    });
+
+    it("shows item count in header", async () => {
+      mockList.mockResolvedValueOnce([
+        {
+          id: "count-1",
+          kind: "doc",
+          text: "Item one",
+          createdAt: "2026-01-01T00:00:00Z",
+          tags: ["docs"],
+        },
+        {
+          id: "count-2",
+          kind: "doc",
+          text: "Item two",
+          createdAt: "2026-01-02T00:00:00Z",
+          tags: ["docs"],
+        },
+      ]);
+      const handler = commands.get("list-docs")!.handler;
+      const result = await handler({ args: "" });
+      expect(result.text).toContain("(2)");
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -366,6 +561,12 @@ describe("openclaw-memory-docs plugin", () => {
       const result = await handler({ args: "ghost-id" });
       expect(result.text).toContain("No memory found");
       expect(result.text).toContain("ghost-id");
+    });
+
+    it("returns usage text when id is whitespace", async () => {
+      const handler = commands.get("forget-doc")!.handler;
+      const result = await handler({ args: "   " });
+      expect(result.text).toContain("Usage:");
     });
 
     it("requires authentication", () => {
@@ -428,6 +629,13 @@ describe("openclaw-memory-docs plugin", () => {
       const handler = tools.get("docs_memory_search")!.handler;
       await handler({ query: "test" });
       expect(mockSearch).toHaveBeenCalledWith("test", { limit: 5 });
+    });
+
+    it("clamps limit to maximum of 20", async () => {
+      mockSearch.mockResolvedValueOnce([]);
+      const handler = tools.get("docs_memory_search")!.handler;
+      await handler({ query: "test", limit: 50 });
+      expect(mockSearch).toHaveBeenCalledWith("test", { limit: 20 });
     });
   });
 });

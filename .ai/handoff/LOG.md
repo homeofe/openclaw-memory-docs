@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-02-27: Expanded unit tests to 50 - full coverage of all commands, tool, and config
+
+**Agent:** Claude Opus 4.6
+**Phase:** Implementation
+**Task:** T-002 - Add unit tests for all commands and the search tool (#3)
+
+### What was done
+
+1. **Expanded test suite from 29 to 50 tests** (tests/index.test.ts):
+   - Added config edge case tests: invalid storePath (logs error, skips registration), custom maxItems, default maxItems
+   - Added logger verification: info called on init, error called on bad path
+   - Added command metadata tests: all accept args, only forget-doc requires auth, usage strings, descriptions
+   - Added tool inputSchema validation tests: query required, types correct
+   - Added /remember-doc tests: valid id/createdAt structure, no meta when clean, custom defaultTags, redactSecrets=false
+   - Added /search-docs tests: limit clamped to max 20, query in error message
+   - Added /list-docs tests: limit clamped to max 50, text truncation at 120 chars, item count in header
+   - Added /forget-doc test: whitespace id returns usage
+   - Added tool test: limit clamped to max 20
+2. **Verified all 50 tests pass** via `vitest run`
+3. **Verified type-check passes** via `tsc --noEmit`
+4. **Updated AAHP files**: MANIFEST.json (T-002 completed), STATUS.md, TRUST.md (multiple properties now verified)
+
+### Decisions
+
+- Built on existing test infrastructure from commit 3b934ab rather than rewriting
+- Focused on edge cases and config paths that the initial 29 tests did not cover
+- Verified limit clamping behavior (search max 20, list max 50) to confirm safeLimit integration
+
+---
+
 ## 2026-02-27: v0.2 roadmap defined + code improvements committed
 
 **Agent:** Claude Opus 4.6
