@@ -3,9 +3,9 @@
   "project": "openclaw-memory-docs",
   "last_session": {
     "agent": "claude-code",
-    "session_id": "t004-tag-project-metadata-2026-02-27",
-    "timestamp": "2026-02-27T03:31:56.591Z",
-    "commit": "3f80227",
+    "session_id": "t005-docs-update-2026-02-27",
+    "timestamp": "2026-02-27T05:01:00Z",
+    "commit": "5f6499c",
     "phase": "implementation",
     "duration_minutes": 2
   },
@@ -39,7 +39,7 @@
       "summary": "AAHP v3 pipeline: research -> architecture -> implement -> review -> complete"
     }
   },
-  "quick_context": "T-004 complete: /remember-doc now supports --tags and --project flags. Tags merge with defaultTags, project stored in meta.project. /list-docs and /search-docs show [tags:...] and [project:...] badges and accept --tags/--project filters. docs_memory_search tool also supports tags/project params. 86 tests passing. Type-check clean. Next: T-005 (docs update).",
+  "quick_context": "T-005 complete: README.md and SKILL.md fully document all 4 commands (/remember-doc, /search-docs, /list-docs, /forget-doc), the docs_memory_search tool, and all config options including --tags/--project flags. 86 tests passing. Type-check clean. Remaining: T-006 (export/sync mode).",
   "next_task_id": 7,
   "tasks": {
     "T-001": {
@@ -78,12 +78,13 @@
     },
     "T-005": {
       "title": "Update README.md and SKILL.md to document all commands (#5)",
-      "status": "ready",
+      "status": "done",
       "priority": "medium",
       "depends_on": [
         "T-003"
       ],
-      "created": "2026-02-27T01:00:00Z"
+      "created": "2026-02-27T01:00:00Z",
+      "completed": "2026-02-27T05:01:00Z"
     },
     "T-006": {
       "title": "Implement export/sync mode for git-first workflows (#2)",
