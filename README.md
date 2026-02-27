@@ -113,6 +113,33 @@ Deletes a documentation memory item by its ID. Use `/list-docs` to find item IDs
 /forget-doc a1b2c3d4-e5f6-7890-abcd-ef1234567890
 ```
 
+### `/export-docs` - Export as markdown files
+
+```
+/export-docs [--tags t1,t2] [--project name] [path]
+```
+
+Exports documentation memories as individual markdown files for git-first workflows. Each file gets YAML frontmatter (id, kind, createdAt, tags, project) and the memory text as body.
+
+**Parameters:**
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `path` | Target directory for exported files | `exportPath` config or `~/.openclaw/workspace/memory/docs-export` |
+| `--tags t1,t2` | Export only items matching these tags | - |
+| `--project name` | Export only items with this project | - |
+
+**File naming:** `YYYY-MM-DD_<shortid>.md` (e.g., `2026-01-15_abc12345.md`)
+
+**Examples:**
+
+```
+/export-docs
+/export-docs ~/docs/memories
+/export-docs --project=dubai
+/export-docs --tags=api --project=backend ~/exports
+```
+
 ## Tool
 
 ### `docs_memory_search`
@@ -152,7 +179,8 @@ Returns a `hits` array with `score`, `id`, `createdAt`, `tags`, `project`, and `
           "dims": 256,
           "redactSecrets": true,
           "defaultTags": ["docs"],
-          "maxItems": 5000
+          "maxItems": 5000,
+          "exportPath": "~/.openclaw/workspace/memory/docs-export"
         }
       }
     }
@@ -170,6 +198,7 @@ Returns a `hits` array with `score`, `id`, `createdAt`, `tags`, `project`, and `
 | `redactSecrets` | boolean | `true` | Redact detected secrets before storage |
 | `defaultTags` | string[] | `["docs"]` | Tags automatically added to every saved item |
 | `maxItems` | number | `5000` | Maximum items in the store (100-100000) |
+| `exportPath` | string | `~/.openclaw/workspace/memory/docs-export` | Directory for markdown export (`/export-docs`) |
 
 ## Design Notes
 

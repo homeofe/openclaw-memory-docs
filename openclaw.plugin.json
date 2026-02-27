@@ -17,7 +17,12 @@
       "dims": { "type": "number", "default": 256, "minimum": 32, "maximum": 2048 },
       "redactSecrets": { "type": "boolean", "default": true },
       "maxItems": { "type": "number", "default": 5000, "minimum": 100, "maximum": 100000 },
-      "defaultTags": { "type": "array", "items": { "type": "string" }, "default": ["docs"] }
+      "defaultTags": { "type": "array", "items": { "type": "string" }, "default": ["docs"] },
+      "exportPath": {
+        "type": "string",
+        "description": "Directory path for exporting memory items as markdown files",
+        "default": "~/.openclaw/workspace/memory/docs-export"
+      }
     }
   }
 }

@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   DefaultRedactor,
   HashEmbedder,
@@ -67,6 +69,36 @@ function formatProjectBadge(meta: Record<string, unknown> | undefined): string {
   return ` [project:${meta.project}]`;
 }
 
+// ---------------------------------------------------------------------------
+// Markdown export helper: converts a MemoryItem to a markdown file with
+// YAML frontmatter containing metadata and the memory text as body.
+// ---------------------------------------------------------------------------
+
+export function formatAsMarkdown(item: MemoryItem): string {
+  const lines: string[] = ["---"];
+  lines.push(`id: ${item.id}`);
+  lines.push(`kind: ${item.kind}`);
+  lines.push(`createdAt: ${item.createdAt}`);
+  if (item.tags && item.tags.length > 0) {
+    lines.push("tags:");
+    for (const tag of item.tags) {
+      lines.push(`  - ${tag}`);
+    }
+  }
+  const project =
+    item.meta && typeof (item.meta as Record<string, unknown>).project === "string"
+      ? ((item.meta as Record<string, unknown>).project as string)
+      : undefined;
+  if (project) {
+    lines.push(`project: ${project}`);
+  }
+  lines.push("---");
+  lines.push("");
+  lines.push(item.text);
+  lines.push("");
+  return lines.join("\n");
+}
+
 export default function register(api: PluginApi) {
   const cfg = (api.pluginConfig ?? {}) as {
     enabled?: boolean;
@@ -75,6 +107,7 @@ export default function register(api: PluginApi) {
     redactSecrets?: boolean;
     defaultTags?: string[];
     maxItems?: number;
+    exportPath?: string;
   };
 
   if (cfg.enabled === false) return;
@@ -243,6 +276,61 @@ export default function register(api: PluginApi) {
       if (!id) return { text: "Usage: /forget-doc <id>" };
       const deleted = await store.delete(id);
       return { text: deleted ? `Deleted docs memory: ${id}` : `No memory found with id: ${id}` };
+    },
+  });
+
+  // Command: /export-docs [--tags t1,t2] [--project name] [path]
+  api.registerCommand({
+    name: "export-docs",
+    description: "Export documentation memories as markdown files",
+    usage: "/export-docs [--tags t1,t2] [--project name] [path]",
+    requireAuth: false,
+    acceptsArgs: true,
+    handler: async (ctx: CommandContext) => {
+      const rawArgs = String(ctx?.args ?? "").trim();
+      const flags = parseFlags(rawArgs);
+
+      // Determine target directory
+      let targetDir: string;
+      try {
+        const rawPath = flags.text || cfg.exportPath || "~/.openclaw/workspace/memory/docs-export";
+        targetDir = safePath(expandHome(rawPath), "[memory-docs] export path");
+      } catch (err: unknown) {
+        return { text: `Invalid export path: ${(err as Error).message}` };
+      }
+
+      // Get items with optional filtering (no limit - export all)
+      const listOpts: { tags?: string[] } = {};
+      if (flags.tags.length > 0) listOpts.tags = flags.tags;
+
+      const items = await store.list(listOpts);
+
+      // Post-filter by project if requested
+      const filtered = flags.project
+        ? items.filter((i) => i.meta && (i.meta as Record<string, unknown>).project === flags.project)
+        : items;
+
+      if (filtered.length === 0) {
+        return { text: "No docs memories to export." };
+      }
+
+      // Create output directory
+      await mkdir(targetDir, { recursive: true });
+
+      // Write each item as a markdown file
+      let count = 0;
+      for (const item of filtered) {
+        const date = item.createdAt.slice(0, 10);
+        const shortId = item.id.length > 8 ? item.id.slice(0, 8) : item.id;
+        const filename = `${date}_${shortId}.md`;
+        const content = formatAsMarkdown(item);
+        await writeFile(join(targetDir, filename), content, "utf-8");
+        count++;
+      }
+
+      return {
+        text: `Exported ${count} memory item${count !== 1 ? "s" : ""} to ${targetDir}`,
+      };
     },
   });
 

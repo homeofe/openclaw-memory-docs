@@ -15,7 +15,7 @@ It is designed for project documentation and long-lived notes where you care abo
 
 ## What it does
 
-- Adds commands: `/remember-doc`, `/search-docs`, `/list-docs`, `/forget-doc`
+- Adds commands: `/remember-doc`, `/search-docs`, `/list-docs`, `/forget-doc`, `/export-docs`
 - Adds a search tool: `docs_memory_search`
 - Stores entries in a local **JSONL file** (one record per line)
 - Uses a deterministic local embedder to enable semantic-ish search without external services
@@ -108,6 +108,29 @@ Examples:
 
 Deletes a memory item by its full ID (shown by `/list-docs`). Requires auth.
 
+### `/export-docs` - Export as markdown files
+
+```
+/export-docs [--tags t1,t2] [--project name] [path]
+```
+
+Exports documentation memories as individual markdown files for git-first workflows. Each file has YAML frontmatter (id, kind, createdAt, tags, project) and the memory text as body.
+
+- `path` - Target directory (default: `exportPath` config or `~/.openclaw/workspace/memory/docs-export`)
+- `--tags t1,t2` - Export only items matching these tags
+- `--project name` - Export only items with this project
+
+File naming: `YYYY-MM-DD_<shortid>.md`
+
+Examples:
+
+```
+/export-docs
+/export-docs ~/docs/memories
+/export-docs --project=dubai
+/export-docs --tags=api --project=backend ~/exports
+```
+
 ## Tool: `docs_memory_search`
 
 Available to agents and automations as a tool call. Searches documentation memories by query with optional tag and project filtering.
@@ -145,7 +168,8 @@ Available to agents and automations as a tool call. Searches documentation memor
           "dims": 256,
           "redactSecrets": true,
           "defaultTags": ["docs"],
-          "maxItems": 5000
+          "maxItems": 5000,
+          "exportPath": "~/.openclaw/workspace/memory/docs-export"
         }
       }
     }
@@ -161,6 +185,7 @@ Available to agents and automations as a tool call. Searches documentation memor
 | `redactSecrets` | boolean | `true` | Redact detected secrets before storage |
 | `defaultTags` | string[] | `["docs"]` | Tags automatically added to every saved item |
 | `maxItems` | number | `5000` | Maximum items in the store (100-100000) |
+| `exportPath` | string | `~/.openclaw/...docs-export` | Directory for markdown export (`/export-docs`) |
 
 ### Notes
 

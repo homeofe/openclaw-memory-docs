@@ -8,7 +8,7 @@ import type {
   SearchHit,
 } from "@elvatis_com/openclaw-memory-core";
 import { JsonlMemoryStore } from "@elvatis_com/openclaw-memory-core";
-import { parseFlags } from "../index.js";
+import { parseFlags, formatAsMarkdown } from "../index.js";
 
 // ---------------------------------------------------------------------------
 // Mock the heavy dependencies so tests never touch the filesystem.
@@ -18,6 +18,18 @@ const mockAdd = vi.fn<(item: MemoryItem) => Promise<void>>().mockResolvedValue(u
 const mockDelete = vi.fn<(id: string) => Promise<boolean>>().mockResolvedValue(false);
 const mockList = vi.fn<(opts?: { limit?: number }) => Promise<MemoryItem[]>>().mockResolvedValue([]);
 const mockSearch = vi.fn<(query: string, opts?: { limit?: number }) => Promise<SearchHit[]>>().mockResolvedValue([]);
+
+// vi.hoisted ensures these are available during vi.mock hoisting, which is
+// needed because node:fs/promises is imported transitively by openclaw-memory-core.
+const { mockMkdir, mockWriteFile } = vi.hoisted(() => ({
+  mockMkdir: vi.fn().mockResolvedValue(undefined),
+  mockWriteFile: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("node:fs/promises", () => ({
+  mkdir: mockMkdir,
+  writeFile: mockWriteFile,
+}));
 
 vi.mock("@elvatis_com/openclaw-memory-core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@elvatis_com/openclaw-memory-core")>();
@@ -84,11 +96,12 @@ describe("openclaw-memory-docs plugin", () => {
   // -------------------------------------------------------------------------
 
   describe("registration", () => {
-    it("registers all four commands", () => {
+    it("registers all five commands", () => {
       expect(commands.has("remember-doc")).toBe(true);
       expect(commands.has("search-docs")).toBe(true);
       expect(commands.has("list-docs")).toBe(true);
       expect(commands.has("forget-doc")).toBe(true);
+      expect(commands.has("export-docs")).toBe(true);
     });
 
     it("registers the docs_memory_search tool", () => {
@@ -154,7 +167,7 @@ describe("openclaw-memory-docs plugin", () => {
 
   describe("command metadata", () => {
     it("all commands accept args", () => {
-      for (const name of ["remember-doc", "search-docs", "list-docs", "forget-doc"]) {
+      for (const name of ["remember-doc", "search-docs", "list-docs", "forget-doc", "export-docs"]) {
         expect(commands.get(name)!.acceptsArgs).toBe(true);
       }
     });
@@ -163,6 +176,7 @@ describe("openclaw-memory-docs plugin", () => {
       expect(commands.get("remember-doc")!.requireAuth).toBe(false);
       expect(commands.get("search-docs")!.requireAuth).toBe(false);
       expect(commands.get("list-docs")!.requireAuth).toBe(false);
+      expect(commands.get("export-docs")!.requireAuth).toBe(false);
       expect(commands.get("forget-doc")!.requireAuth).toBe(true);
     });
 
@@ -855,6 +869,182 @@ describe("openclaw-memory-docs plugin", () => {
   });
 
   // -------------------------------------------------------------------------
+  // /export-docs (T-007)
+  // -------------------------------------------------------------------------
+
+  describe("/export-docs", () => {
+    it("registers the export-docs command", () => {
+      expect(commands.has("export-docs")).toBe(true);
+    });
+
+    it("does not require auth", () => {
+      expect(commands.get("export-docs")!.requireAuth).toBe(false);
+    });
+
+    it("accepts args", () => {
+      expect(commands.get("export-docs")!.acceptsArgs).toBe(true);
+    });
+
+    it("returns empty message when no items exist", async () => {
+      mockList.mockResolvedValueOnce([]);
+      const handler = commands.get("export-docs")!.handler;
+      const result = await handler({ args: "" });
+      expect(result.text).toContain("No docs memories to export.");
+    });
+
+    it("exports items as markdown files", async () => {
+      mockList.mockResolvedValueOnce([
+        {
+          id: "abc12345-6789-0abc-def0-123456789abc",
+          kind: "doc",
+          text: "First doc about API design",
+          createdAt: "2026-01-15T10:30:00Z",
+          tags: ["docs"],
+        },
+        {
+          id: "def45678-9abc-0def-1234-567890abcdef",
+          kind: "doc",
+          text: "Second doc about auth",
+          createdAt: "2026-01-16T12:00:00Z",
+          tags: ["docs", "api"],
+        },
+      ]);
+      const handler = commands.get("export-docs")!.handler;
+      const result = await handler({ args: "" });
+
+      expect(result.text).toContain("Exported 2 memory items");
+      expect(mockMkdir).toHaveBeenCalledWith(expect.any(String), { recursive: true });
+      expect(mockWriteFile).toHaveBeenCalledTimes(2);
+
+      // Check filenames follow YYYY-MM-DD_shortid.md pattern
+      const firstCall = mockWriteFile.mock.calls[0]!;
+      expect(firstCall[0]).toContain("2026-01-15_abc12345.md");
+      expect(firstCall[2]).toBe("utf-8");
+
+      const secondCall = mockWriteFile.mock.calls[1]!;
+      expect(secondCall[0]).toContain("2026-01-16_def45678.md");
+    });
+
+    it("writes valid markdown with YAML frontmatter", async () => {
+      mockList.mockResolvedValueOnce([
+        {
+          id: "abc12345-6789-0abc-def0-123456789abc",
+          kind: "doc",
+          text: "API design patterns",
+          createdAt: "2026-01-15T10:30:00Z",
+          tags: ["docs", "api"],
+          meta: { project: "AEGIS" },
+        },
+      ]);
+      const handler = commands.get("export-docs")!.handler;
+      await handler({ args: "" });
+
+      const content = mockWriteFile.mock.calls[0]![1] as string;
+      expect(content).toContain("---");
+      expect(content).toContain("id: abc12345-6789-0abc-def0-123456789abc");
+      expect(content).toContain("kind: doc");
+      expect(content).toContain("createdAt: 2026-01-15T10:30:00Z");
+      expect(content).toContain("  - docs");
+      expect(content).toContain("  - api");
+      expect(content).toContain("project: AEGIS");
+      expect(content).toContain("API design patterns");
+    });
+
+    it("uses singular 'item' for single export", async () => {
+      mockList.mockResolvedValueOnce([
+        { id: "single-id-1234", kind: "doc", text: "Single item", createdAt: "2026-01-15T00:00:00Z", tags: ["docs"] },
+      ]);
+      const handler = commands.get("export-docs")!.handler;
+      const result = await handler({ args: "" });
+      expect(result.text).toContain("Exported 1 memory item to");
+      expect(result.text).not.toContain("items");
+    });
+
+    it("filters by --tags flag", async () => {
+      mockList.mockResolvedValueOnce([
+        { id: "api-item-12", kind: "doc", text: "API doc", createdAt: "2026-01-15T00:00:00Z", tags: ["docs", "api"] },
+      ]);
+      const handler = commands.get("export-docs")!.handler;
+      await handler({ args: "--tags api" });
+      expect(mockList).toHaveBeenCalledWith({ tags: ["api"] });
+    });
+
+    it("filters by --project flag (post-filter)", async () => {
+      mockList.mockResolvedValueOnce([
+        { id: "aegis-item1", kind: "doc", text: "AEGIS doc", createdAt: "2026-01-01T00:00:00Z", tags: ["docs"], meta: { project: "AEGIS" } },
+        { id: "crm-item-12", kind: "doc", text: "CRM doc", createdAt: "2026-01-02T00:00:00Z", tags: ["docs"], meta: { project: "CRM" } },
+      ]);
+      const handler = commands.get("export-docs")!.handler;
+      const result = await handler({ args: "--project AEGIS" });
+
+      expect(result.text).toContain("Exported 1 memory item");
+      expect(mockWriteFile).toHaveBeenCalledTimes(1);
+      const content = mockWriteFile.mock.calls[0]![1] as string;
+      expect(content).toContain("AEGIS doc");
+    });
+
+    it("returns empty message when project filter excludes all items", async () => {
+      mockList.mockResolvedValueOnce([
+        { id: "crm-only-12", kind: "doc", text: "CRM doc", createdAt: "2026-01-01T00:00:00Z", tags: ["docs"], meta: { project: "CRM" } },
+      ]);
+      const handler = commands.get("export-docs")!.handler;
+      const result = await handler({ args: "--project AEGIS" });
+      expect(result.text).toContain("No docs memories to export.");
+      expect(mockWriteFile).not.toHaveBeenCalled();
+    });
+
+    it("uses short ID as-is when ID is shorter than 8 chars", async () => {
+      mockList.mockResolvedValueOnce([
+        { id: "tiny", kind: "doc", text: "Short id item", createdAt: "2026-02-01T00:00:00Z", tags: ["docs"] },
+      ]);
+      const handler = commands.get("export-docs")!.handler;
+      await handler({ args: "" });
+
+      const filePath = mockWriteFile.mock.calls[0]![0] as string;
+      expect(filePath).toContain("2026-02-01_tiny.md");
+    });
+
+    it("returns error for invalid export path", async () => {
+      const handler = commands.get("export-docs")!.handler;
+      const result = await handler({ args: "/../../../etc/evil" });
+      expect(result.text).toContain("Invalid export path");
+      expect(mockWriteFile).not.toHaveBeenCalled();
+    });
+
+    it("passes no limit to store.list for full export", async () => {
+      mockList.mockResolvedValueOnce([]);
+      const handler = commands.get("export-docs")!.handler;
+      await handler({ args: "" });
+      // export-docs should NOT pass a limit - it exports all items
+      expect(mockList).toHaveBeenCalledWith({});
+    });
+
+    it("uses custom exportPath from config", async () => {
+      const mod = await import("../index.js");
+      const mock = createMockApi({ exportPath: "~/custom-export" });
+      mod.default(mock.api);
+      mockList.mockResolvedValueOnce([
+        { id: "cfg-path-12", kind: "doc", text: "Config path test", createdAt: "2026-01-01T00:00:00Z", tags: ["docs"] },
+      ]);
+      const handler = mock.commands.get("export-docs")!.handler;
+      const result = await handler({ args: "" });
+      expect(result.text).toContain("Exported 1 memory item");
+      // The mkdir should be called with the expanded custom path
+      expect(mockMkdir).toHaveBeenCalledWith(expect.stringContaining("custom-export"), { recursive: true });
+    });
+
+    it("combines --tags and --project filtering", async () => {
+      mockList.mockResolvedValueOnce([
+        { id: "both-match", kind: "doc", text: "Both match", createdAt: "2026-01-01T00:00:00Z", tags: ["docs", "api"], meta: { project: "AEGIS" } },
+      ]);
+      const handler = commands.get("export-docs")!.handler;
+      const result = await handler({ args: "--tags api --project AEGIS" });
+      expect(mockList).toHaveBeenCalledWith({ tags: ["api"] });
+      expect(result.text).toContain("Exported 1 memory item");
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // /list-docs with metadata display and filtering (T-004)
   // -------------------------------------------------------------------------
 
@@ -984,5 +1174,105 @@ describe("parseFlags", () => {
   it("normalizes whitespace in remaining text", () => {
     const result = parseFlags("--tags api   extra   spaces   here");
     expect(result.text).toBe("extra spaces here");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatAsMarkdown unit tests (T-007)
+// ---------------------------------------------------------------------------
+
+describe("formatAsMarkdown", () => {
+  it("produces valid YAML frontmatter with id, kind, and createdAt", () => {
+    const item: MemoryItem = {
+      id: "test-uuid-1234",
+      kind: "doc",
+      text: "Some documentation text",
+      createdAt: "2026-01-15T10:30:00Z",
+      tags: ["docs"],
+    };
+    const md = formatAsMarkdown(item);
+    expect(md).toContain("---");
+    expect(md).toContain("id: test-uuid-1234");
+    expect(md).toContain("kind: doc");
+    expect(md).toContain("createdAt: 2026-01-15T10:30:00Z");
+  });
+
+  it("includes tags as YAML list", () => {
+    const item: MemoryItem = {
+      id: "tag-test",
+      kind: "doc",
+      text: "Tagged item",
+      createdAt: "2026-01-01T00:00:00Z",
+      tags: ["docs", "api", "auth"],
+    };
+    const md = formatAsMarkdown(item);
+    expect(md).toContain("tags:");
+    expect(md).toContain("  - docs");
+    expect(md).toContain("  - api");
+    expect(md).toContain("  - auth");
+  });
+
+  it("includes project from meta", () => {
+    const item: MemoryItem = {
+      id: "proj-test",
+      kind: "doc",
+      text: "Project item",
+      createdAt: "2026-01-01T00:00:00Z",
+      tags: ["docs"],
+      meta: { project: "AEGIS" },
+    };
+    const md = formatAsMarkdown(item);
+    expect(md).toContain("project: AEGIS");
+  });
+
+  it("omits project when meta is undefined", () => {
+    const item: MemoryItem = {
+      id: "no-proj",
+      kind: "doc",
+      text: "No project",
+      createdAt: "2026-01-01T00:00:00Z",
+      tags: ["docs"],
+    };
+    const md = formatAsMarkdown(item);
+    expect(md).not.toContain("project:");
+  });
+
+  it("omits tags section when tags array is empty", () => {
+    const item: MemoryItem = {
+      id: "no-tags",
+      kind: "doc",
+      text: "No tags",
+      createdAt: "2026-01-01T00:00:00Z",
+      tags: [],
+    };
+    const md = formatAsMarkdown(item);
+    expect(md).not.toContain("tags:");
+  });
+
+  it("places text after the frontmatter closing delimiter", () => {
+    const item: MemoryItem = {
+      id: "body-test",
+      kind: "doc",
+      text: "The actual body content here",
+      createdAt: "2026-01-01T00:00:00Z",
+      tags: ["docs"],
+    };
+    const md = formatAsMarkdown(item);
+    // Text should appear after the second ---
+    const parts = md.split("---");
+    expect(parts.length).toBe(3);
+    expect(parts[2]).toContain("The actual body content here");
+  });
+
+  it("ends with a trailing newline", () => {
+    const item: MemoryItem = {
+      id: "newline-test",
+      kind: "doc",
+      text: "Ends with newline",
+      createdAt: "2026-01-01T00:00:00Z",
+      tags: ["docs"],
+    };
+    const md = formatAsMarkdown(item);
+    expect(md.endsWith("\n")).toBe(true);
   });
 });
