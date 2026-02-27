@@ -140,6 +140,30 @@ Exports documentation memories as individual markdown files for git-first workfl
 /export-docs --tags=api --project=backend ~/exports
 ```
 
+### `/import-docs` - Import from markdown files
+
+```
+/import-docs [path]
+```
+
+Imports documentation memories from a directory of exported markdown files. Each `.md` file must have YAML frontmatter with `id`, `kind`, and `createdAt` fields (the format produced by `/export-docs`). Requires auth.
+
+Duplicate items (matching by ID) and invalid files are skipped automatically.
+
+**Parameters:**
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `path` | Source directory containing markdown files | `exportPath` config or `~/.openclaw/workspace/memory/docs-export` |
+
+**Examples:**
+
+```
+/import-docs
+/import-docs ~/docs/memories
+/import-docs /path/to/exported/docs
+```
+
 ## Tool
 
 ### `docs_memory_search`
@@ -198,7 +222,7 @@ Returns a `hits` array with `score`, `id`, `createdAt`, `tags`, `project`, and `
 | `redactSecrets` | boolean | `true` | Redact detected secrets before storage |
 | `defaultTags` | string[] | `["docs"]` | Tags automatically added to every saved item |
 | `maxItems` | number | `5000` | Maximum items in the store (100-100000) |
-| `exportPath` | string | `~/.openclaw/workspace/memory/docs-export` | Directory for markdown export (`/export-docs`) |
+| `exportPath` | string | `~/.openclaw/workspace/memory/docs-export` | Default directory for `/export-docs` and `/import-docs` |
 
 ## Design Notes
 
@@ -206,3 +230,4 @@ Returns a `hits` array with `score`, `id`, `createdAt`, `tags`, `project`, and `
 - If you want automatic capture, use `openclaw-memory-brain` instead.
 - Secret redaction covers common patterns: API keys, tokens, private key blocks.
 - Embeddings are deterministic and local - no calls to external embedding services.
+- Export/import uses a git-friendly format: one markdown file per memory item, with deterministic filenames (`YYYY-MM-DD_<shortid>.md`). Frontmatter contains all metadata, making diffs clean and merge-friendly.

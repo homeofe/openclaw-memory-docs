@@ -8,7 +8,7 @@ import type {
   SearchHit,
 } from "@elvatis_com/openclaw-memory-core";
 import { JsonlMemoryStore } from "@elvatis_com/openclaw-memory-core";
-import { parseFlags, formatAsMarkdown } from "../index.js";
+import { parseFlags, formatAsMarkdown, parseMarkdownToItem } from "../index.js";
 
 // ---------------------------------------------------------------------------
 // Mock the heavy dependencies so tests never touch the filesystem.
@@ -16,19 +16,24 @@ import { parseFlags, formatAsMarkdown } from "../index.js";
 
 const mockAdd = vi.fn<(item: MemoryItem) => Promise<void>>().mockResolvedValue(undefined);
 const mockDelete = vi.fn<(id: string) => Promise<boolean>>().mockResolvedValue(false);
+const mockGet = vi.fn<(id: string) => Promise<MemoryItem | undefined>>().mockResolvedValue(undefined);
 const mockList = vi.fn<(opts?: { limit?: number }) => Promise<MemoryItem[]>>().mockResolvedValue([]);
 const mockSearch = vi.fn<(query: string, opts?: { limit?: number }) => Promise<SearchHit[]>>().mockResolvedValue([]);
 
 // vi.hoisted ensures these are available during vi.mock hoisting, which is
 // needed because node:fs/promises is imported transitively by openclaw-memory-core.
-const { mockMkdir, mockWriteFile } = vi.hoisted(() => ({
+const { mockMkdir, mockWriteFile, mockReadFile, mockReaddir } = vi.hoisted(() => ({
   mockMkdir: vi.fn().mockResolvedValue(undefined),
   mockWriteFile: vi.fn().mockResolvedValue(undefined),
+  mockReadFile: vi.fn().mockResolvedValue(""),
+  mockReaddir: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("node:fs/promises", () => ({
   mkdir: mockMkdir,
   writeFile: mockWriteFile,
+  readFile: mockReadFile,
+  readdir: mockReaddir,
 }));
 
 vi.mock("@elvatis_com/openclaw-memory-core", async (importOriginal) => {
@@ -38,6 +43,7 @@ vi.mock("@elvatis_com/openclaw-memory-core", async (importOriginal) => {
     JsonlMemoryStore: vi.fn().mockImplementation(() => ({
       add: mockAdd,
       delete: mockDelete,
+      get: mockGet,
       list: mockList,
       search: mockSearch,
     })),
@@ -96,12 +102,13 @@ describe("openclaw-memory-docs plugin", () => {
   // -------------------------------------------------------------------------
 
   describe("registration", () => {
-    it("registers all five commands", () => {
+    it("registers all six commands", () => {
       expect(commands.has("remember-doc")).toBe(true);
       expect(commands.has("search-docs")).toBe(true);
       expect(commands.has("list-docs")).toBe(true);
       expect(commands.has("forget-doc")).toBe(true);
       expect(commands.has("export-docs")).toBe(true);
+      expect(commands.has("import-docs")).toBe(true);
     });
 
     it("registers the docs_memory_search tool", () => {
@@ -167,17 +174,18 @@ describe("openclaw-memory-docs plugin", () => {
 
   describe("command metadata", () => {
     it("all commands accept args", () => {
-      for (const name of ["remember-doc", "search-docs", "list-docs", "forget-doc", "export-docs"]) {
+      for (const name of ["remember-doc", "search-docs", "list-docs", "forget-doc", "export-docs", "import-docs"]) {
         expect(commands.get(name)!.acceptsArgs).toBe(true);
       }
     });
 
-    it("only forget-doc requires auth", () => {
+    it("forget-doc and import-docs require auth", () => {
       expect(commands.get("remember-doc")!.requireAuth).toBe(false);
       expect(commands.get("search-docs")!.requireAuth).toBe(false);
       expect(commands.get("list-docs")!.requireAuth).toBe(false);
       expect(commands.get("export-docs")!.requireAuth).toBe(false);
       expect(commands.get("forget-doc")!.requireAuth).toBe(true);
+      expect(commands.get("import-docs")!.requireAuth).toBe(true);
     });
 
     it("all commands have a usage string starting with /", () => {
@@ -1045,6 +1053,154 @@ describe("openclaw-memory-docs plugin", () => {
   });
 
   // -------------------------------------------------------------------------
+  // /import-docs
+  // -------------------------------------------------------------------------
+
+  describe("/import-docs", () => {
+    it("registers the import-docs command", () => {
+      expect(commands.has("import-docs")).toBe(true);
+    });
+
+    it("requires auth", () => {
+      expect(commands.get("import-docs")!.requireAuth).toBe(true);
+    });
+
+    it("accepts args", () => {
+      expect(commands.get("import-docs")!.acceptsArgs).toBe(true);
+    });
+
+    it("returns error when import directory does not exist", async () => {
+      const enoent = new Error("ENOENT") as NodeJS.ErrnoException;
+      enoent.code = "ENOENT";
+      mockReaddir.mockRejectedValueOnce(enoent);
+      const handler = commands.get("import-docs")!.handler;
+      const result = await handler({ args: "" });
+      expect(result.text).toContain("Import directory not found");
+    });
+
+    it("returns message when no markdown files are found", async () => {
+      mockReaddir.mockResolvedValueOnce(["readme.txt", "notes.json"]);
+      const handler = commands.get("import-docs")!.handler;
+      const result = await handler({ args: "" });
+      expect(result.text).toContain("No markdown files found");
+    });
+
+    it("imports valid markdown files", async () => {
+      const mdContent = "---\nid: test-import-1234\nkind: doc\ncreatedAt: 2026-01-15T10:30:00Z\ntags:\n  - docs\n---\n\nImported text content\n";
+      mockReaddir.mockResolvedValueOnce(["2026-01-15_test-imp.md"]);
+      mockReadFile.mockResolvedValueOnce(mdContent);
+      mockGet.mockResolvedValueOnce(undefined); // not a duplicate
+
+      const handler = commands.get("import-docs")!.handler;
+      const result = await handler({ args: "" });
+      expect(result.text).toContain("Imported 1 memory item");
+      expect(mockAdd).toHaveBeenCalledTimes(1);
+      const addedItem = mockAdd.mock.calls[0]![0] as MemoryItem;
+      expect(addedItem.id).toBe("test-import-1234");
+      expect(addedItem.text).toBe("Imported text content");
+    });
+
+    it("skips duplicate items (same ID already exists)", async () => {
+      const mdContent = "---\nid: existing-id-1234\nkind: doc\ncreatedAt: 2026-01-15T10:30:00Z\ntags:\n  - docs\n---\n\nDuplicate text\n";
+      mockReaddir.mockResolvedValueOnce(["2026-01-15_existing.md"]);
+      mockReadFile.mockResolvedValueOnce(mdContent);
+      mockGet.mockResolvedValueOnce({ id: "existing-id-1234", kind: "doc", text: "Already exists", createdAt: "2026-01-15T10:30:00Z" });
+
+      const handler = commands.get("import-docs")!.handler;
+      const result = await handler({ args: "" });
+      expect(result.text).toContain("Imported 0 memory items");
+      expect(result.text).toContain("Skipped 1");
+      expect(mockAdd).not.toHaveBeenCalled();
+    });
+
+    it("skips invalid markdown files", async () => {
+      mockReaddir.mockResolvedValueOnce(["bad-file.md"]);
+      mockReadFile.mockResolvedValueOnce("This is not valid frontmatter content");
+
+      const handler = commands.get("import-docs")!.handler;
+      const result = await handler({ args: "" });
+      expect(result.text).toContain("Imported 0 memory items");
+      expect(result.text).toContain("Skipped 1");
+    });
+
+    it("imports multiple files and reports counts", async () => {
+      const validMd1 = "---\nid: import-a-12345678\nkind: doc\ncreatedAt: 2026-01-15T00:00:00Z\ntags:\n  - docs\n---\n\nFirst import\n";
+      const validMd2 = "---\nid: import-b-12345678\nkind: doc\ncreatedAt: 2026-01-16T00:00:00Z\ntags:\n  - docs\n---\n\nSecond import\n";
+      const invalidMd = "Not valid markdown";
+
+      mockReaddir.mockResolvedValueOnce(["a.md", "b.md", "c.md"]);
+      mockReadFile.mockResolvedValueOnce(validMd1);
+      mockReadFile.mockResolvedValueOnce(validMd2);
+      mockReadFile.mockResolvedValueOnce(invalidMd);
+      mockGet.mockResolvedValueOnce(undefined);
+      mockGet.mockResolvedValueOnce(undefined);
+
+      const handler = commands.get("import-docs")!.handler;
+      const result = await handler({ args: "" });
+      expect(result.text).toContain("Imported 2 memory items");
+      expect(result.text).toContain("Skipped 1");
+      expect(mockAdd).toHaveBeenCalledTimes(2);
+    });
+
+    it("returns error for invalid import path", async () => {
+      const handler = commands.get("import-docs")!.handler;
+      const result = await handler({ args: "/../../../etc/evil" });
+      expect(result.text).toContain("Invalid import path");
+    });
+
+    it("uses custom exportPath from config as default import path", async () => {
+      const mod = await import("../index.js");
+      const mock = createMockApi({ exportPath: "~/custom-export" });
+      mod.default(mock.api);
+      mockReaddir.mockResolvedValueOnce([]);
+      // Since readdir returns no .md files, it should report "No markdown files"
+      // but the path used should be the custom one
+      const handler = mock.commands.get("import-docs")!.handler;
+      const result = await handler({ args: "" });
+      expect(result.text).toContain("No markdown files found");
+      expect(result.text).toContain("custom-export");
+    });
+
+    it("handles readdir errors other than ENOENT", async () => {
+      const permError = new Error("EACCES: permission denied") as NodeJS.ErrnoException;
+      permError.code = "EACCES";
+      mockReaddir.mockRejectedValueOnce(permError);
+      const handler = commands.get("import-docs")!.handler;
+      const result = await handler({ args: "" });
+      expect(result.text).toContain("Failed to read import directory");
+    });
+
+    it("imports item with project metadata", async () => {
+      const mdContent = "---\nid: proj-import-1234\nkind: doc\ncreatedAt: 2026-01-15T00:00:00Z\ntags:\n  - docs\nproject: AEGIS\n---\n\nProject item text\n";
+      mockReaddir.mockResolvedValueOnce(["proj-item.md"]);
+      mockReadFile.mockResolvedValueOnce(mdContent);
+      mockGet.mockResolvedValueOnce(undefined);
+
+      const handler = commands.get("import-docs")!.handler;
+      await handler({ args: "" });
+
+      const addedItem = mockAdd.mock.calls[0]![0] as MemoryItem;
+      expect(addedItem.id).toBe("proj-import-1234");
+      expect((addedItem.meta as Record<string, unknown>).project).toBe("AEGIS");
+    });
+
+    it("only reads .md files, ignoring other extensions", async () => {
+      mockReaddir.mockResolvedValueOnce(["notes.md", "data.json", "readme.txt", "backup.md"]);
+      const validMd = "---\nid: md-only-12345678\nkind: doc\ncreatedAt: 2026-01-15T00:00:00Z\ntags:\n  - docs\n---\n\nMarkdown only\n";
+      mockReadFile.mockResolvedValueOnce(validMd);
+      mockReadFile.mockResolvedValueOnce(validMd.replace("md-only-12345678", "md-only-22345678"));
+      mockGet.mockResolvedValueOnce(undefined);
+      mockGet.mockResolvedValueOnce(undefined);
+
+      const handler = commands.get("import-docs")!.handler;
+      const result = await handler({ args: "" });
+      expect(result.text).toContain("Imported 2 memory items");
+      // readFile should only be called for .md files
+      expect(mockReadFile).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // /list-docs with metadata display and filtering (T-004)
   // -------------------------------------------------------------------------
 
@@ -1274,5 +1430,98 @@ describe("formatAsMarkdown", () => {
     };
     const md = formatAsMarkdown(item);
     expect(md.endsWith("\n")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseMarkdownToItem unit tests
+// ---------------------------------------------------------------------------
+
+describe("parseMarkdownToItem", () => {
+  it("parses a valid markdown file with frontmatter", () => {
+    const md = "---\nid: test-id-1234\nkind: doc\ncreatedAt: 2026-01-15T10:30:00Z\ntags:\n  - docs\n  - api\n---\n\nSome documentation text\n";
+    const item = parseMarkdownToItem(md);
+    expect(item).toBeDefined();
+    expect(item!.id).toBe("test-id-1234");
+    expect(item!.kind).toBe("doc");
+    expect(item!.createdAt).toBe("2026-01-15T10:30:00Z");
+    expect(item!.tags).toEqual(["docs", "api"]);
+    expect(item!.text).toBe("Some documentation text");
+  });
+
+  it("parses a file with project metadata", () => {
+    const md = "---\nid: proj-id-1234\nkind: doc\ncreatedAt: 2026-01-15T00:00:00Z\ntags:\n  - docs\nproject: AEGIS\n---\n\nProject doc text\n";
+    const item = parseMarkdownToItem(md);
+    expect(item).toBeDefined();
+    expect(item!.meta).toBeDefined();
+    expect((item!.meta as Record<string, unknown>).project).toBe("AEGIS");
+  });
+
+  it("returns undefined for invalid content without frontmatter", () => {
+    const md = "Just plain text without frontmatter";
+    const item = parseMarkdownToItem(md);
+    expect(item).toBeUndefined();
+  });
+
+  it("returns undefined when required fields are missing", () => {
+    const md = "---\nid: only-id\n---\n\nBody text\n";
+    const item = parseMarkdownToItem(md);
+    expect(item).toBeUndefined();
+  });
+
+  it("returns undefined when body text is empty", () => {
+    const md = "---\nid: empty-body\nkind: doc\ncreatedAt: 2026-01-15T00:00:00Z\n---\n\n";
+    const item = parseMarkdownToItem(md);
+    expect(item).toBeUndefined();
+  });
+
+  it("omits meta when no project is present", () => {
+    const md = "---\nid: no-meta-id\nkind: doc\ncreatedAt: 2026-01-15T00:00:00Z\ntags:\n  - docs\n---\n\nPlain item\n";
+    const item = parseMarkdownToItem(md);
+    expect(item).toBeDefined();
+    expect(item!.meta).toBeUndefined();
+  });
+
+  it("omits tags when no tags section is present", () => {
+    const md = "---\nid: no-tags-id\nkind: doc\ncreatedAt: 2026-01-15T00:00:00Z\n---\n\nNo tags item\n";
+    const item = parseMarkdownToItem(md);
+    expect(item).toBeDefined();
+    expect(item!.tags).toBeUndefined();
+  });
+
+  it("roundtrips through formatAsMarkdown and parseMarkdownToItem", () => {
+    const original: MemoryItem = {
+      id: "roundtrip-uuid-1234",
+      kind: "doc",
+      text: "Roundtrip test content with multiple words",
+      createdAt: "2026-02-15T14:30:00Z",
+      tags: ["docs", "api", "auth"],
+      meta: { project: "AEGIS" },
+    };
+    const md = formatAsMarkdown(original);
+    const parsed = parseMarkdownToItem(md);
+    expect(parsed).toBeDefined();
+    expect(parsed!.id).toBe(original.id);
+    expect(parsed!.kind).toBe(original.kind);
+    expect(parsed!.text).toBe(original.text);
+    expect(parsed!.createdAt).toBe(original.createdAt);
+    expect(parsed!.tags).toEqual(original.tags);
+    expect((parsed!.meta as Record<string, unknown>).project).toBe("AEGIS");
+  });
+
+  it("roundtrips an item without tags or project", () => {
+    const original: MemoryItem = {
+      id: "minimal-roundtrip",
+      kind: "doc",
+      text: "Minimal roundtrip test",
+      createdAt: "2026-01-01T00:00:00Z",
+    };
+    const md = formatAsMarkdown(original);
+    const parsed = parseMarkdownToItem(md);
+    expect(parsed).toBeDefined();
+    expect(parsed!.id).toBe(original.id);
+    expect(parsed!.text).toBe(original.text);
+    expect(parsed!.tags).toBeUndefined();
+    expect(parsed!.meta).toBeUndefined();
   });
 });

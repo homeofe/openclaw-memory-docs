@@ -15,7 +15,7 @@ It is designed for project documentation and long-lived notes where you care abo
 
 ## What it does
 
-- Adds commands: `/remember-doc`, `/search-docs`, `/list-docs`, `/forget-doc`, `/export-docs`
+- Adds commands: `/remember-doc`, `/search-docs`, `/list-docs`, `/forget-doc`, `/export-docs`, `/import-docs`
 - Adds a search tool: `docs_memory_search`
 - Stores entries in a local **JSONL file** (one record per line)
 - Uses a deterministic local embedder to enable semantic-ish search without external services
@@ -131,6 +131,26 @@ Examples:
 /export-docs --tags=api --project=backend ~/exports
 ```
 
+### `/import-docs` - Import from markdown files
+
+```
+/import-docs [path]
+```
+
+Imports documentation memories from a directory of exported markdown files. Each `.md` file must have YAML frontmatter with `id`, `kind`, and `createdAt` fields (the format produced by `/export-docs`). Requires auth.
+
+Duplicate items (matching by ID) and invalid files are skipped automatically.
+
+- `path` - Source directory (default: `exportPath` config or `~/.openclaw/workspace/memory/docs-export`)
+
+Examples:
+
+```
+/import-docs
+/import-docs ~/docs/memories
+/import-docs /path/to/exported/docs
+```
+
 ## Tool: `docs_memory_search`
 
 Available to agents and automations as a tool call. Searches documentation memories by query with optional tag and project filtering.
@@ -185,9 +205,10 @@ Available to agents and automations as a tool call. Searches documentation memor
 | `redactSecrets` | boolean | `true` | Redact detected secrets before storage |
 | `defaultTags` | string[] | `["docs"]` | Tags automatically added to every saved item |
 | `maxItems` | number | `5000` | Maximum items in the store (100-100000) |
-| `exportPath` | string | `~/.openclaw/...docs-export` | Directory for markdown export (`/export-docs`) |
+| `exportPath` | string | `~/.openclaw/...docs-export` | Default directory for `/export-docs` and `/import-docs` |
 
 ### Notes
 
 - This plugin intentionally does **not** auto-capture messages.
 - If you want automatic capture, use `openclaw-memory-brain`.
+- Export/import uses a git-friendly format: one markdown file per memory item, with deterministic filenames (`YYYY-MM-DD_<shortid>.md`). Frontmatter contains all metadata, making diffs clean and merge-friendly.
