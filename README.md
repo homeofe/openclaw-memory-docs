@@ -231,3 +231,8 @@ Returns a `hits` array with `score`, `id`, `createdAt`, `tags`, `project`, and `
 - Secret redaction covers common patterns: API keys, tokens, private key blocks.
 - Embeddings are deterministic and local - no calls to external embedding services.
 - Export/import uses a git-friendly format: one markdown file per memory item, with deterministic filenames (`YYYY-MM-DD_<shortid>.md`). Frontmatter contains all metadata, making diffs clean and merge-friendly.
+
+## Shared Template
+
+For automation that creates GitHub issues, use `src/templates/github-issue-helper.ts`.
+It provides `isValidIssueRepoSlug()`, `resolveIssueRepo()`, and `buildGhIssueCreateCommand()`.
