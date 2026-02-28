@@ -453,7 +453,7 @@ export default function register(api: PluginApi) {
   api.registerTool({
     name: "docs_memory_search",
     description: "Search documentation memory items (local JSONL store)",
-    inputSchema: {
+    parameters: {
       type: "object",
       additionalProperties: false,
       properties: {
@@ -464,7 +464,7 @@ export default function register(api: PluginApi) {
       },
       required: ["query"],
     },
-    handler: async (params: ToolCallParams) => {
+    async execute(params: ToolCallParams) {
       const q = String(params['query'] ?? "").trim();
       const limit = safeLimit(params['limit'], 5, 20);
       if (!q) return { hits: [] };

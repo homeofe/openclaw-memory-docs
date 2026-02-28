@@ -207,13 +207,13 @@ describe("openclaw-memory-docs plugin", () => {
 
   describe("docs_memory_search tool schema", () => {
     it("has a valid inputSchema with query as required", () => {
-      const schema = tools.get("docs_memory_search")!.inputSchema as Record<string, unknown>;
+      const schema = tools.get("docs_memory_search")!.parameters as Record<string, unknown>;
       expect(schema.type).toBe("object");
       expect(schema.required).toEqual(["query"]);
     });
 
     it("defines query as string and limit as number in the schema", () => {
-      const schema = tools.get("docs_memory_search")!.inputSchema as {
+      const schema = tools.get("docs_memory_search")!.parameters as {
         properties: Record<string, { type: string }>;
       };
       expect(schema.properties.query.type).toBe("string");
@@ -625,13 +625,13 @@ describe("openclaw-memory-docs plugin", () => {
 
   describe("docs_memory_search tool", () => {
     it("returns empty hits array when query is empty", async () => {
-      const handler = tools.get("docs_memory_search")!.handler;
+      const handler = tools.get("docs_memory_search")!.execute;
       const result = (await handler({ query: "" })) as { hits: unknown[] };
       expect(result.hits).toEqual([]);
     });
 
     it("returns empty hits array when query is whitespace", async () => {
-      const handler = tools.get("docs_memory_search")!.handler;
+      const handler = tools.get("docs_memory_search")!.execute;
       const result = (await handler({ query: "   " })) as { hits: unknown[] };
       expect(result.hits).toEqual([]);
     });
@@ -649,7 +649,7 @@ describe("openclaw-memory-docs plugin", () => {
           score: 0.92,
         },
       ]);
-      const handler = tools.get("docs_memory_search")!.handler;
+      const handler = tools.get("docs_memory_search")!.execute;
       const result = (await handler({ query: "document" })) as {
         hits: Array<{ score: number; id: string; text: string; createdAt: string; tags: string[] }>;
       };
@@ -663,28 +663,28 @@ describe("openclaw-memory-docs plugin", () => {
 
     it("passes limit to the store search", async () => {
       mockSearch.mockResolvedValueOnce([]);
-      const handler = tools.get("docs_memory_search")!.handler;
+      const handler = tools.get("docs_memory_search")!.execute;
       await handler({ query: "test", limit: 3 });
       expect(mockSearch).toHaveBeenCalledWith("test", { limit: 3 });
     });
 
     it("defaults limit to 5 when not specified", async () => {
       mockSearch.mockResolvedValueOnce([]);
-      const handler = tools.get("docs_memory_search")!.handler;
+      const handler = tools.get("docs_memory_search")!.execute;
       await handler({ query: "test" });
       expect(mockSearch).toHaveBeenCalledWith("test", { limit: 5 });
     });
 
     it("clamps limit to maximum of 20", async () => {
       mockSearch.mockResolvedValueOnce([]);
-      const handler = tools.get("docs_memory_search")!.handler;
+      const handler = tools.get("docs_memory_search")!.execute;
       await handler({ query: "test", limit: 50 });
       expect(mockSearch).toHaveBeenCalledWith("test", { limit: 20 });
     });
 
     it("passes tags filter to the store search", async () => {
       mockSearch.mockResolvedValueOnce([]);
-      const handler = tools.get("docs_memory_search")!.handler;
+      const handler = tools.get("docs_memory_search")!.execute;
       await handler({ query: "test", tags: ["api", "auth"] });
       expect(mockSearch).toHaveBeenCalledWith("test", { limit: 5, tags: ["api", "auth"] });
     });
@@ -700,7 +700,7 @@ describe("openclaw-memory-docs plugin", () => {
           score: 0.8,
         },
       ]);
-      const handler = tools.get("docs_memory_search")!.handler;
+      const handler = tools.get("docs_memory_search")!.execute;
       const result = (await handler({ query: "test", project: "AEGIS" })) as { hits: Array<{ id: string }> };
       expect(result.hits).toHaveLength(1);
       expect(result.hits[0]!.id).toBe("p1");
@@ -713,7 +713,7 @@ describe("openclaw-memory-docs plugin", () => {
           score: 0.9,
         },
       ]);
-      const handler = tools.get("docs_memory_search")!.handler;
+      const handler = tools.get("docs_memory_search")!.execute;
       const result = (await handler({ query: "test" })) as { hits: Array<{ project?: string }> };
       expect(result.hits[0]!.project).toBe("AEGIS");
     });
@@ -725,7 +725,7 @@ describe("openclaw-memory-docs plugin", () => {
           score: 0.9,
         },
       ]);
-      const handler = tools.get("docs_memory_search")!.handler;
+      const handler = tools.get("docs_memory_search")!.execute;
       const result = (await handler({ query: "test" })) as { hits: Array<{ project?: string }> };
       expect(result.hits[0]!.project).toBeUndefined();
     });
