@@ -40,7 +40,7 @@
     }
   },
   "quick_context": "T-009 verified: /list-docs already displays item IDs (implemented by T-003). Code shows [id:shortId] per line + full IDs in footer. 131 tests passing. Type-check clean. GitHub issue #4 already closed. Remaining open tasks: T-010 (unit tests), T-011 (export/sync), T-012 (tags+project).",
-  "next_task_id": 22,
+  "next_task_id": 36,
   "tasks": {
     "T-001": {
       "title": "Define v0.2 roadmap items as issues and prioritize",
