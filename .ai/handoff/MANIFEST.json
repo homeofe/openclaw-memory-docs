@@ -3,11 +3,11 @@
   "project": "openclaw-memory-docs",
   "last_session": {
     "agent": "claude-code",
-    "session_id": "t007-export-sync-2026-02-27",
-    "timestamp": "2026-02-27T07:52:25.364Z",
-    "commit": "da940b9",
+    "session_id": "t008-docs-update-2026-03-01",
+    "timestamp": "2026-03-01T14:02:00.000Z",
+    "commit": "pending",
     "phase": "implementation",
-    "duration_minutes": 2
+    "duration_minutes": 5
   },
   "files": {
     "STATUS.md": {
@@ -39,8 +39,8 @@
       "summary": "AAHP v3 pipeline: research -> architecture -> implement -> review -> complete"
     }
   },
-  "quick_context": "T-007 complete: /export-docs command added for git-first workflows. Exports memory items as individual markdown files with YAML frontmatter. Supports --tags/--project filtering and custom export paths. New exportPath config option. 108 tests passing. Type-check clean. All v0.2 tasks done (T-001 through T-007). T-006 superseded by T-007.",
-  "next_task_id": 8,
+  "quick_context": "T-008 complete: Verified README.md and SKILL.md already fully document all 6 commands, tool, and config. Fixed pre-existing test mock constructor issue (arrow fn -> regular fn). 131 tests passing. Type-check clean. GitHub issue #5 already closed. Remaining open tasks: T-009 (IDs in output), T-010 (unit tests), T-011 (export/sync), T-012 (tags+project).",
+  "next_task_id": 13,
   "tasks": {
     "T-001": {
       "title": "Define v0.2 roadmap items as issues and prioritize",
@@ -107,6 +107,57 @@
       "created": "2026-02-27T08:40:56Z",
       "github_issue": "https://github.com/elvatis/openclaw-memory-docs/issues/2",
       "completed": "2026-02-27T07:52:25.364Z"
+    },
+    "T-008": {
+      "title": "v0.2: Update README and SKILL.md to document all commands",
+      "status": "done",
+      "priority": "medium",
+      "depends_on": [],
+      "created": "2026-03-01T12:58:54.360Z",
+      "completed": "2026-03-01T14:02:00.000Z",
+      "notes": "Documentation was already comprehensive from T-005. Verified all 6 commands, tool, and config options are documented. Fixed pre-existing test mock issue.",
+      "github_issue": 5,
+      "github_repo": "elvatis/openclaw-memory-docs"
+    },
+    "T-009": {
+      "title": "v0.2: /list-docs should display item IDs for use with /forget-doc",
+      "status": "ready",
+      "priority": "high",
+      "depends_on": [],
+      "created": "2026-03-01T12:58:54.360Z",
+      "notes": "## Problem\n\nThe `/list-docs` command truncates output to date and text preview but does not show the item ID. The `/forget-doc` command requires an ID to delete an item. Users currently have no way to discover the ID of a memory item through the CLI.\n\nThis makes `/forget-doc` effectively unusable without inspecting the raw JSONL file.\n\n## Current behavior\n\n```\n1. [2026-02-27] Dubai: decide A vs B, then collect facts...\n```\n\n## Expected behavior\n\n```\n1. [abc123] [2026-02-27] Dubai: decide A vs B,",
+      "github_issue": 4,
+      "github_repo": "elvatis/openclaw-memory-docs"
+    },
+    "T-010": {
+      "title": "v0.2: Add unit tests for all commands and the search tool",
+      "status": "ready",
+      "priority": "medium",
+      "depends_on": [],
+      "created": "2026-03-01T12:58:54.360Z",
+      "notes": "## Problem\n\nThe plugin has zero test coverage. The CONVENTIONS.md states \"All new code must have unit tests\" and \"Tests must pass before every commit,\" but no tests exist. This is the most critical gap for v0.2.\n\n## Acceptance criteria\n\n- [ ] Unit tests for `/remember-doc` - stores item, redacts secrets, rejects empty input\n- [ ] Unit tests for `/search-docs` - returns ranked results, respects limit, handles empty query\n- [ ] Unit tests for `/list-docs` - returns items in reverse chronological o",
+      "github_issue": 3,
+      "github_repo": "elvatis/openclaw-memory-docs"
+    },
+    "T-011": {
+      "title": "v0.2: export/sync mode (git-first)",
+      "status": "ready",
+      "priority": "medium",
+      "depends_on": [],
+      "created": "2026-03-01T12:58:54.360Z",
+      "notes": "Optional export mode that writes docs memory to a directory of markdown files (one per item) for repo/wiki sync.\n\nAcceptance:\n- config: exportDir\n- deterministic filenames\n- no secrets",
+      "github_issue": 2,
+      "github_repo": "elvatis/openclaw-memory-docs"
+    },
+    "T-012": {
+      "title": "v0.2: /remember-doc supports tags + project",
+      "status": "ready",
+      "priority": "medium",
+      "depends_on": [],
+      "created": "2026-03-01T12:58:54.360Z",
+      "notes": "Extend /remember-doc to support optional metadata, e.g.\n/remember-doc --tags dubai,tax --project dubai <text>\nStore meta fields and expose in search results.",
+      "github_issue": 1,
+      "github_repo": "elvatis/openclaw-memory-docs"
     }
   }
 }

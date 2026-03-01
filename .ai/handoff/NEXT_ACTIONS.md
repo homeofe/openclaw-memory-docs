@@ -1,4 +1,4 @@
-﻿# openclaw-memory-docs: Next Actions for Incoming Agent
+# openclaw-memory-docs: Next Actions for Incoming Agent
 
 > Priority order. Work top-down.
 > Each item should be self-contained, the agent must be able to start without asking questions.
@@ -6,67 +6,150 @@
 
 ---
 
-## T-003: Show item IDs in /list-docs and /search-docs output
+## Status Summary
 
-**Goal:** Make `/forget-doc` usable by displaying memory item IDs in list and search output.
+| Status | Count |
+|--------|-------|
+| Done | 8 |
+| Ready | 4 |
+| Blocked | 0 |
+
+---
+
+## Ready - Work These Next
+
+### T-009: /list-docs should display item IDs for use with /forget-doc
+
+**Goal:** Make `/forget-doc` usable by ensuring item IDs are prominently displayed in `/list-docs` output.
 
 **GitHub issue:** [#4](https://github.com/elvatis/openclaw-memory-docs/issues/4)
 **Priority:** HIGH
 
 **Context:**
-- `/forget-doc <id>` requires a UUID but users have no way to discover IDs via CLI
-- `/list-docs` already shows short IDs (added in commit 3b934ab) - verify this is working
-- `/search-docs` currently shows only score and text, no IDs
+- `/forget-doc <id>` requires a UUID but users need a clear way to discover IDs
+- `/list-docs` already shows short IDs `[id:abc12345]` in output (added previously)
+- The full IDs are appended at the end of the list output
+- Issue may already be resolved - verify current behavior matches expected behavior from issue description
 
 **What to do:**
-1. In `/search-docs` handler, include `h.item.id.slice(0, 8)` in the output line
-2. Add tests for the new ID display in search output
-3. Verify existing `/list-docs` ID display tests still pass
+1. Check issue #4 description for the exact expected output format
+2. Compare with current `/list-docs` output format in `index.ts:308-314`
+3. If already resolved, close the issue and mark done
+4. If not, adjust the output format to match expectations
+5. Ensure tests cover the ID display behavior
+
+**Files:** `index.ts`, `tests/index.test.ts`
 
 **Definition of done:**
-- [ ] `/search-docs` shows short IDs
-- [ ] Tests updated
-- [ ] All 50+ tests pass
+- [ ] `/list-docs` output shows item IDs in a user-friendly format
+- [ ] Tests verify ID display
+- [ ] GitHub issue #4 closed
 
 ---
 
-## T-004: Add tag/project metadata support to /remember-doc
+### T-010: Add unit tests for all commands and the search tool
 
-**Goal:** Allow users to attach tags and project names to memory items.
+**Goal:** Ensure comprehensive test coverage for all plugin commands and the search tool.
+
+**GitHub issue:** [#3](https://github.com/elvatis/openclaw-memory-docs/issues/3)
+**Priority:** MEDIUM
+
+**Context:**
+- 131 tests already exist in `tests/index.test.ts` covering all commands
+- This issue was created when there were zero tests, but T-002 already added tests
+- Verify current coverage meets the acceptance criteria in issue #3
+- If already resolved, close the issue and mark done
+
+**What to do:**
+1. Check issue #3 acceptance criteria
+2. Verify existing tests cover: `/remember-doc`, `/search-docs`, `/list-docs`, `/forget-doc`, `/export-docs`, `/import-docs`, `docs_memory_search` tool
+3. If coverage is sufficient, close issue and mark done
+4. If gaps exist, add missing tests
+
+**Files:** `tests/index.test.ts`
+
+**Definition of done:**
+- [ ] All commands have unit tests
+- [ ] Search tool has unit tests
+- [ ] Edge cases covered (empty input, invalid args, etc.)
+- [ ] GitHub issue #3 closed
+
+---
+
+### T-011: export/sync mode (git-first)
+
+**Goal:** Optional export mode that writes docs memory to a directory of markdown files for repo/wiki sync.
+
+**GitHub issue:** [#2](https://github.com/elvatis/openclaw-memory-docs/issues/2)
+**Priority:** MEDIUM
+
+**Context:**
+- `/export-docs` and `/import-docs` commands already exist (added in T-007)
+- `exportPath` config option already exists
+- This issue was created before export/import was implemented
+- Likely already resolved - verify against issue #2 acceptance criteria
+
+**What to do:**
+1. Check issue #2 acceptance criteria
+2. Verify `/export-docs` and `/import-docs` meet all requirements
+3. If already resolved, close issue and mark done
+4. If gaps exist, implement remaining features
+
+**Files:** `index.ts`, `tests/index.test.ts`
+
+**Definition of done:**
+- [ ] Export produces deterministic filenames
+- [ ] No secrets in exported files
+- [ ] Config option for export directory
+- [ ] GitHub issue #2 closed
+
+---
+
+### T-012: /remember-doc supports tags + project
+
+**Goal:** Allow `/remember-doc` to accept `--tags` and `--project` flags for metadata.
 
 **GitHub issue:** [#1](https://github.com/elvatis/openclaw-memory-docs/issues/1)
 **Priority:** MEDIUM
-**Blocked by:** None (T-002 is done)
+
+**Context:**
+- `/remember-doc --tags t1,t2 --project name <text>` already works (added in T-004)
+- Tags are merged with `defaultTags` from config
+- Project is stored in item metadata
+- This issue was created before the feature was implemented
+- Likely already resolved - verify against issue #1 acceptance criteria
+
+**What to do:**
+1. Check issue #1 acceptance criteria
+2. Verify current `/remember-doc` flag support matches requirements
+3. If already resolved, close issue and mark done
+4. If gaps exist, implement remaining features
+
+**Files:** `index.ts`, `tests/index.test.ts`
+
+**Definition of done:**
+- [ ] `/remember-doc` supports `--tags` flag
+- [ ] `/remember-doc` supports `--project` flag
+- [ ] Tags/project visible in search results
+- [ ] GitHub issue #1 closed
 
 ---
 
-## T-005: Update README.md and SKILL.md to document all commands
+## Blocked
 
-**Goal:** Bring documentation up to date with all 4 commands and config options.
-
-**GitHub issue:** [#5](https://github.com/elvatis/openclaw-memory-docs/issues/5)
-**Priority:** MEDIUM
-**Blocked by:** T-003 (output format should be finalized first)
-
----
-
-## T-006: Implement export/sync mode for git-first workflows
-
-**Goal:** Add an optional export mode that writes memory items to individual markdown files.
-
-**GitHub issue:** [#2](https://github.com/elvatis/openclaw-memory-docs/issues/2)
-**Priority:** LOW
-**Blocked by:** T-004 (tag metadata needed for meaningful export filenames)
+_No blocked tasks._
 
 ---
 
 ## Recently Completed
 
-| Item | Resolution |
-|------|-----------|
-| T-002: Add unit tests | 50 tests covering all commands, tool, config, edge cases (2026-02-27) |
-| T-001: Define v0.2 roadmap | 5 GitHub issues created and prioritized (2026-02-27) |
-| Initial scaffold | Created 2026-02-24 |
+| Task | Date | Notes |
+|------|------|-------|
+| T-008: Update README and SKILL.md | 2026-03-01 | Docs already comprehensive from T-005. Fixed test mock issue. |
+| T-007: Add export/sync mode | 2026-02-27 | /export-docs and /import-docs commands with markdown files |
+| T-006: Export/sync mode | 2026-02-27 | Superseded by T-007 |
+| T-005: Update README/SKILL.md | 2026-02-27 | All commands, tool, and config documented |
+| T-004: Tag/project metadata | 2026-02-27 | --tags and --project flags for /remember-doc |
 
 ---
 
@@ -78,3 +161,4 @@
 | Test suite | `tests/index.test.ts` |
 | Plugin config | `openclaw.plugin.json` |
 | Core dependency | `../openclaw-memory-core/src/` |
+| AAHP manifest | `.ai/handoff/MANIFEST.json` |

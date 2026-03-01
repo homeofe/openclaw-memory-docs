@@ -40,13 +40,15 @@ vi.mock("@elvatis_com/openclaw-memory-core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@elvatis_com/openclaw-memory-core")>();
   return {
     ...actual,
-    JsonlMemoryStore: vi.fn().mockImplementation(() => ({
-      add: mockAdd,
-      delete: mockDelete,
-      get: mockGet,
-      list: mockList,
-      search: mockSearch,
-    })),
+    JsonlMemoryStore: vi.fn().mockImplementation(function () {
+      return {
+        add: mockAdd,
+        delete: mockDelete,
+        get: mockGet,
+        list: mockList,
+        search: mockSearch,
+      };
+    }),
   };
 });
 
