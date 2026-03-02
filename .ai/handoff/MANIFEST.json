@@ -45,7 +45,7 @@
     "T-001": {
       "title": "Define v0.2 roadmap items as issues and prioritize",
       "status": "done",
-      "priority": "medium",
+      "priority": "low",
       "depends_on": [],
       "created": "2026-02-24T00:00:00Z",
       "completed": "2026-02-27T01:00:00Z",
@@ -102,7 +102,7 @@
     "T-007": {
       "title": "Add export/sync mode (write memories to markdown files)",
       "status": "done",
-      "priority": "low",
+      "priority": "medium",
       "depends_on": [],
       "created": "2026-02-27T08:40:56Z",
       "github_issue": 2,
@@ -133,7 +133,7 @@
     "T-010": {
       "title": "v0.2: Add unit tests for all commands and the search tool",
       "status": "done",
-      "priority": "medium",
+      "priority": "high",
       "depends_on": [],
       "created": "2026-03-01T12:58:54.360Z",
       "notes": "## Problem\n\nThe plugin has zero test coverage. The CONVENTIONS.md states \"All new code must have unit tests\" and \"Tests must pass before every commit,\" but no tests exist. This is the most critical gap for v0.2.\n\n## Acceptance criteria\n\n- [ ] Unit tests for `/remember-doc` - stores item, redacts secrets, rejects empty input\n- [ ] Unit tests for `/search-docs` - returns ranked results, respects limit, handles empty query\n- [ ] Unit tests for `/list-docs` - returns items in reverse chronological o",
