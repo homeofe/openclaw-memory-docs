@@ -52,3 +52,8 @@ _No blocked tasks._
 | Plugin config | `openclaw.plugin.json` |
 | Core dependency | `../openclaw-memory-core/src/` |
 | AAHP manifest | `.ai/handoff/MANIFEST.json` |
+
+## ⚠️ Version Sync Rule
+**ALWAYS keep `package.json` and `openclaw.plugin.json` versions in sync.**
+When bumping a version, update BOTH files. Mismatched versions cause plugin loading failures and npm/ClawHub publish inconsistencies.
+
